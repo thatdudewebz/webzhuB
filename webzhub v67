@@ -27,6 +27,23 @@ local function GetBaseDPS(turretName)
     return 0
 end
 
+-- CALCULATES TOTAL POWER (Level + Buffs) FOR TIE-BREAKERS!
+local function GetTotalPower(obj)
+    local level = obj:GetAttribute("TurretLevel") or obj:GetAttribute("Level") or 1
+    if type(level) ~= "number" then level = tonumber(level) or 1 end
+    
+    local power = level
+    
+    -- Give massive weight to Oils and Clocks so Oiled towers are never accidentally swapped out for unoiled ones
+    local oil = obj:GetAttribute("Oil")
+    if oil and oil ~= "" and oil ~= "None" then power = power + 1000 end
+    
+    local clock = obj:GetAttribute("Clock")
+    if clock and clock ~= "" and clock ~= "None" then power = power + 500 end
+    
+    return power
+end
+
 -- == SEAMLESS SAVE SYSTEM ==
 getgenv().Config = {
     AutoCollect = false,
@@ -51,7 +68,7 @@ getgenv().Config = {
     TargetMapTurrets = {"Gatling Gun"}
 }
 
--- Smart Load: Keeps default new values if save file is old!
+-- Smart Load
 if isfile and isfile(SaveFileName) then
     pcall(function()
         local data = HttpService:JSONDecode(readfile(SaveFileName))
@@ -92,7 +109,6 @@ local function GetMyPlot()
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local myPos = LocalPlayer.Character.HumanoidRootPart.Position
         local closestPlot, closestDist = nil, 150 
-        
         for _, plot in ipairs(plotsFolder:GetChildren()) do
             if plot:IsA("Model") and plot.PrimaryPart then
                 local dist = (plot.PrimaryPart.Position - myPos).Magnitude
@@ -114,7 +130,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "🧟 Zombie Farm | Webz Hub v67",
     LoadingTitle = "Loading Webz Hub v67...",
-    LoadingSubtitle = "Custom Intervals Update",
+    LoadingSubtitle = "Total Power Update",
     ConfigurationSaving = { Enabled = false },
     KeySystem = false
 })
@@ -141,14 +157,14 @@ MainTab:CreateSlider({
     Callback = function(Value) getgenv().Config.UpgradeInterval = Value; SaveSettings() end,
 })
 
-MainTab:CreateToggle({Name = "Smart Auto-Swap", CurrentValue = getgenv().Config.AutoSwap, Callback = function(Value) getgenv().Config.AutoSwap = Value; SaveSettings() end})
+MainTab:CreateToggle({Name = "Smart Auto-Swap (Checks Base DPS & Level)", CurrentValue = getgenv().Config.AutoSwap, Callback = function(Value) getgenv().Config.AutoSwap = Value; SaveSettings() end})
 MainTab:CreateSlider({
     Name = "Swap Interval", Range = {1, 60}, Increment = 1, Suffix = "s", CurrentValue = getgenv().Config.SwapInterval,
     Callback = function(Value) 
         getgenv().Config.SwapInterval = Value; 
         SaveSettings()
         if Value < 10 then
-            Rayfield:Notify({Title = "⚠️ Lag Warning", Content = "Setting Auto-Swap below 10 seconds may cause lag or FPS drops!", Duration = 4})
+            Rayfield:Notify({Title = "⚠️ Lag Warning", Content = "Setting Auto-Swap below 10 seconds may cause lag!", Duration = 4})
         end
     end,
 })
@@ -159,7 +175,6 @@ MainTab:CreateSlider({
     Name = "Rewards Interval", Range = {5, 120}, Increment = 5, Suffix = "s", CurrentValue = getgenv().Config.RewardsInterval,
     Callback = function(Value) getgenv().Config.RewardsInterval = Value; SaveSettings() end,
 })
-
 MainTab:CreateToggle({Name = "Enable Auto-Spin (Roll!)", CurrentValue = getgenv().Config.AutoSpin, Callback = function(Value) getgenv().Config.AutoSpin = Value; SaveSettings() end})
 
 local TurretTab = Window:CreateTab("🔫 Auto-Buy Turrets", 4483362458)
@@ -172,9 +187,8 @@ ShopTab:CreateDropdown({Name = "Select Items to Buy", Options = {"Shiny Oil", "R
 
 local CreditTab = Window:CreateTab("📜 Credits", 4483362458)
 CreditTab:CreateLabel("Script & Hub Engine created by: webz")
-CreditTab:CreateLabel("V67: Fully Custom Loop Intervals & Lag Protections")
 
-Rayfield:Notify({Title = "Webz Hub v67 Loaded!", Content = "Custom Sliders are now active.", Duration = 4, Image = 4483362458})
+Rayfield:Notify({Title = "Webz Hub v67 Loaded!", Content = "Total Power Math Applied. Sliders Active.", Duration = 4, Image = 4483362458})
 
 -- ==========================================
 -- BACKGROUND LOOPS (DYNAMIC INTERVALS)
@@ -193,7 +207,6 @@ end)
 task.spawn(function()
     while task.wait(1) do
         if getgenv().Config.AutoSpin then FirePrompt("Roll!") end
-        
         if getgenv().Config.AutoBuyMapTurrets then
             for _, prompt in ipairs(Workspace:GetDescendants()) do
                 if prompt:IsA("ProximityPrompt") and prompt.Name == "TurretBuy" then
@@ -207,7 +220,7 @@ task.spawn(function()
     end
 end)
 
--- 3. SMART AUTO-SWAP LOOP
+-- 3. SMART AUTO-SWAP LOOP (Total Power Tie-Breaker)
 task.spawn(function()
     while true do
         local waitTime = getgenv().Config.SwapInterval or 10
@@ -217,16 +230,26 @@ task.spawn(function()
             local myPlot = GetMyPlot()
             if myPlot and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
                 
-                local bestTool, bestDPS = nil, -1
+                -- FIND BEST INVENTORY TOWER
+                local bestTool, bestBaseDPS, bestTotalPower = nil, -1, -1
                 local allTools = LocalPlayer.Backpack:GetChildren()
                 for _, t in ipairs(LocalPlayer.Character:GetChildren()) do table.insert(allTools, t) end
                 
                 for _, tool in ipairs(allTools) do
                     if tool:IsA("Tool") and TurretsDB[tool.Name] then
                         local baseDPS = GetBaseDPS(tool.Name)
-                        if baseDPS > bestDPS then
-                            bestDPS = baseDPS
+                        local totalPower = GetTotalPower(tool)
+                        
+                        if baseDPS > bestBaseDPS then
+                            bestBaseDPS = baseDPS
+                            bestTotalPower = totalPower
                             bestTool = tool
+                        elseif baseDPS == bestBaseDPS then
+                            -- Tie-Breaker: Same Base DPS, compare Level/Oils!
+                            if totalPower > bestTotalPower then
+                                bestTotalPower = totalPower
+                                bestTool = tool
+                            end
                         end
                     end
                 end
@@ -250,29 +273,49 @@ task.spawn(function()
                         pcall(function() fireproximityprompt(emptySlabPrompt, 1, true) end)
                         pcall(function() fireproximityprompt(emptySlabPrompt) end)
                     else
-                        local weakestModel, weakestDPS = nil, math.huge
+                        -- FIND WEAKEST PLACED TOWER
+                        local weakestModel, weakestBaseDPS, weakestTotalPower = nil, math.huge, math.huge
                         local turretsFolder = myPlot:FindFirstChild("Turrets")
                         
                         if turretsFolder then
                             for _, obj in ipairs(turretsFolder:GetChildren()) do
                                 if obj:IsA("Model") and TurretsDB[obj.Name] then
                                     local baseDPS = GetBaseDPS(obj.Name)
-                                    if baseDPS < weakestDPS then
-                                        weakestDPS = baseDPS
+                                    local totalPower = GetTotalPower(obj)
+                                    
+                                    if baseDPS < weakestBaseDPS then
+                                        weakestBaseDPS = baseDPS
+                                        weakestTotalPower = totalPower
                                         weakestModel = obj
+                                    elseif baseDPS == weakestBaseDPS then
+                                        -- Tie-Breaker: Find the one with the lowest Level/Buffs!
+                                        if totalPower < weakestTotalPower then
+                                            weakestTotalPower = totalPower
+                                            weakestModel = obj
+                                        end
                                     end
                                 end
                             end
                         end
                         
-                        -- FAILPROOF CHECK: Only swaps if best is strictly greater!
-                        if weakestModel and bestDPS > weakestDPS then
-                            local turretId = weakestModel:GetAttribute("TurretId")
-                            local gridCell = weakestModel:GetAttribute("GridCell")
+                        -- FAILPROOF SWAP EXECUTION:
+                        -- Only swap if Base DPS is greater, OR (if Base DPS is equal) the Total Power is strictly greater!
+                        if weakestModel then
+                            local shouldSwap = false
+                            if bestBaseDPS > weakestBaseDPS then
+                                shouldSwap = true
+                            elseif bestBaseDPS == weakestBaseDPS and bestTotalPower > weakestTotalPower then
+                                shouldSwap = true
+                            end
                             
-                            pcall(function() CoreEvents.TurretPickup:FireServer(weakestModel) end)
-                            if turretId then pcall(function() CoreEvents.TurretPickup:FireServer(turretId) end) end
-                            if gridCell then pcall(function() CoreEvents.TurretPickup:FireServer(gridCell) end) end
+                            if shouldSwap then
+                                local turretId = weakestModel:GetAttribute("TurretId")
+                                local gridCell = weakestModel:GetAttribute("GridCell")
+                                
+                                pcall(function() CoreEvents.TurretPickup:FireServer(weakestModel) end)
+                                if turretId then pcall(function() CoreEvents.TurretPickup:FireServer(turretId) end) end
+                                if gridCell then pcall(function() CoreEvents.TurretPickup:FireServer(gridCell) end) end
+                            end
                         end
                     end
                 end
@@ -295,11 +338,9 @@ task.spawn(function()
                     for _, obj in ipairs(turretsFolder:GetChildren()) do
                         if obj:IsA("Model") and TurretsDB[obj.Name] then
                             local currentLevel = obj:GetAttribute("TurretLevel") or 1
-                            
                             if currentLevel < getgenv().Config.MaxUpgradeLevel then
                                 local turretId = obj:GetAttribute("TurretId")
                                 local gridCell = obj:GetAttribute("GridCell")
-                                
                                 pcall(function() CoreEvents.TurretUpgrade:FireServer(obj) end)
                                 if turretId then pcall(function() CoreEvents.TurretUpgrade:FireServer(turretId) end) end
                                 if gridCell then pcall(function() CoreEvents.TurretUpgrade:FireServer(gridCell) end) end
@@ -318,9 +359,7 @@ task.spawn(function()
         if getgenv().Config.AutoBuyShop then
             FirePrompt("Open Shop")
             task.wait(1) 
-            
             local sleepTime = 5 
-            
             for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
                 if gui:IsA("TextLabel") and table.find(getgenv().Config.ShopItems, gui.Text) then
                     local parent = gui.Parent
@@ -329,18 +368,14 @@ task.spawn(function()
                         if buyBtn and buyBtn:IsA("ImageButton") then VirtualClick(buyBtn) end
                     end
                 end
-                
                 if gui:IsA("TextLabel") and gui.Text:match("RESTOCK IN (%d+):(%d+)") then
                     local m, s = gui.Text:match("RESTOCK IN (%d+):(%d+)")
                     if m and s then
                         local totalSeconds = (tonumber(m) * 60) + tonumber(s)
-                        if totalSeconds > 0 then
-                            sleepTime = totalSeconds + 2 
-                        end
+                        if totalSeconds > 0 then sleepTime = totalSeconds + 2 end
                     end
                 end
             end
-            
             task.wait(sleepTime) 
         else
             task.wait(5) 
@@ -353,7 +388,6 @@ task.spawn(function()
     while true do
         local waitTime = getgenv().Config.RewardsInterval or 10
         task.wait(waitTime)
-        
         if getgenv().Config.AutoClaimRewards then
             for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
                 if gui:IsA("ImageButton") and gui.Name == "Claim" then VirtualClick(gui) end
