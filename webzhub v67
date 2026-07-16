@@ -1,5 +1,5 @@
 -- ==========================================
--- 🧟 ZOMBIE FARM | WEBZ HUB V67
+-- 🧟 ZOMBIE Farm | WEBZ HUB V67
 -- Created by: webz
 -- ==========================================
 local Players = game:GetService("Players")
@@ -27,14 +27,13 @@ local function GetBaseDPS(turretName)
     return 0
 end
 
--- CALCULATES TOTAL POWER (Level + Buffs) FOR TIE-BREAKERS!
+-- CALCULATES TOTAL POWER FOR TIE-BREAKERS!
 local function GetTotalPower(obj)
     local level = obj:GetAttribute("TurretLevel") or obj:GetAttribute("Level") or 1
     if type(level) ~= "number" then level = tonumber(level) or 1 end
     
     local power = level
     
-    -- Give massive weight to Oils and Clocks so Oiled towers are never accidentally swapped out for unoiled ones
     local oil = obj:GetAttribute("Oil")
     if oil and oil ~= "" and oil ~= "None" then power = power + 1000 end
     
@@ -50,6 +49,7 @@ getgenv().Config = {
     CollectInterval = 1,
     
     AutoSwap = false,
+    DeepPowerScan = false, -- NEW V67 CONFIG
     SwapInterval = 10,
     
     AutoUpgrade = false,
@@ -130,7 +130,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "🧟 Zombie Farm | Webz Hub v67",
     LoadingTitle = "Loading Webz Hub v67...",
-    LoadingSubtitle = "Total Power Update",
+    LoadingSubtitle = "Deep Scan Optimization",
     ConfigurationSaving = { Enabled = false },
     KeySystem = false
 })
@@ -157,7 +157,21 @@ MainTab:CreateSlider({
     Callback = function(Value) getgenv().Config.UpgradeInterval = Value; SaveSettings() end,
 })
 
-MainTab:CreateToggle({Name = "Smart Auto-Swap (Checks Base DPS & Level)", CurrentValue = getgenv().Config.AutoSwap, Callback = function(Value) getgenv().Config.AutoSwap = Value; SaveSettings() end})
+MainTab:CreateToggle({Name = "Smart Auto-Swap", CurrentValue = getgenv().Config.AutoSwap, Callback = function(Value) getgenv().Config.AutoSwap = Value; SaveSettings() end})
+
+-- NEW: DEEP SCAN TOGGLE
+MainTab:CreateToggle({
+    Name = "Deep Power Scan (Buffs/Level Ties)", 
+    CurrentValue = getgenv().Config.DeepPowerScan, 
+    Callback = function(Value) 
+        getgenv().Config.DeepPowerScan = Value; 
+        SaveSettings()
+        if Value then
+            Rayfield:Notify({Title = "⚠️ Lag Warning", Content = "Deep Power Scan uses heavy math calculations. May lower FPS on slower devices!", Duration = 4})
+        end
+    end
+})
+
 MainTab:CreateSlider({
     Name = "Swap Interval", Range = {1, 60}, Increment = 1, Suffix = "s", CurrentValue = getgenv().Config.SwapInterval,
     Callback = function(Value) 
@@ -188,7 +202,7 @@ ShopTab:CreateDropdown({Name = "Select Items to Buy", Options = {"Shiny Oil", "R
 local CreditTab = Window:CreateTab("📜 Credits", 4483362458)
 CreditTab:CreateLabel("Script & Hub Engine created by: webz")
 
-Rayfield:Notify({Title = "Webz Hub v67 Loaded!", Content = "Total Power Math Applied. Sliders Active.", Duration = 4, Image = 4483362458})
+Rayfield:Notify({Title = "Webz Hub v67 Loaded!", Content = "Optimization loaded. Toggle Deep Scan if needed.", Duration = 4, Image = 4483362458})
 
 -- ==========================================
 -- BACKGROUND LOOPS (DYNAMIC INTERVALS)
@@ -220,7 +234,7 @@ task.spawn(function()
     end
 end)
 
--- 3. SMART AUTO-SWAP LOOP (Total Power Tie-Breaker)
+-- 3. SMART AUTO-SWAP LOOP (With Deep Scan Option)
 task.spawn(function()
     while true do
         local waitTime = getgenv().Config.SwapInterval or 10
@@ -238,14 +252,14 @@ task.spawn(function()
                 for _, tool in ipairs(allTools) do
                     if tool:IsA("Tool") and TurretsDB[tool.Name] then
                         local baseDPS = GetBaseDPS(tool.Name)
-                        local totalPower = GetTotalPower(tool)
+                        local totalPower = 0
+                        if getgenv().Config.DeepPowerScan then totalPower = GetTotalPower(tool) end
                         
                         if baseDPS > bestBaseDPS then
                             bestBaseDPS = baseDPS
                             bestTotalPower = totalPower
                             bestTool = tool
-                        elseif baseDPS == bestBaseDPS then
-                            -- Tie-Breaker: Same Base DPS, compare Level/Oils!
+                        elseif getgenv().Config.DeepPowerScan and baseDPS == bestBaseDPS then
                             if totalPower > bestTotalPower then
                                 bestTotalPower = totalPower
                                 bestTool = tool
@@ -281,14 +295,14 @@ task.spawn(function()
                             for _, obj in ipairs(turretsFolder:GetChildren()) do
                                 if obj:IsA("Model") and TurretsDB[obj.Name] then
                                     local baseDPS = GetBaseDPS(obj.Name)
-                                    local totalPower = GetTotalPower(obj)
+                                    local totalPower = 0
+                                    if getgenv().Config.DeepPowerScan then totalPower = GetTotalPower(obj) end
                                     
                                     if baseDPS < weakestBaseDPS then
                                         weakestBaseDPS = baseDPS
                                         weakestTotalPower = totalPower
                                         weakestModel = obj
-                                    elseif baseDPS == weakestBaseDPS then
-                                        -- Tie-Breaker: Find the one with the lowest Level/Buffs!
+                                    elseif getgenv().Config.DeepPowerScan and baseDPS == weakestBaseDPS then
                                         if totalPower < weakestTotalPower then
                                             weakestTotalPower = totalPower
                                             weakestModel = obj
@@ -299,12 +313,11 @@ task.spawn(function()
                         end
                         
                         -- FAILPROOF SWAP EXECUTION:
-                        -- Only swap if Base DPS is greater, OR (if Base DPS is equal) the Total Power is strictly greater!
                         if weakestModel then
                             local shouldSwap = false
                             if bestBaseDPS > weakestBaseDPS then
                                 shouldSwap = true
-                            elseif bestBaseDPS == weakestBaseDPS and bestTotalPower > weakestTotalPower then
+                            elseif getgenv().Config.DeepPowerScan and bestBaseDPS == weakestBaseDPS and bestTotalPower > weakestTotalPower then
                                 shouldSwap = true
                             end
                             
