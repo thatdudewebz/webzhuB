@@ -1,0 +1,318 @@
+-- ==========================================
+-- 🧟 ZOMBIE FARM | WEBZ HUB V67
+-- Created by: webz
+-- ==========================================
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+
+local CoreEvents = ReplicatedStorage:WaitForChild("Events"):WaitForChild("Global"):WaitForChild("Core")
+local SaveFileName = "WebzHubV67_Settings.json"
+
+-- Dynamically load Turrets
+local TurretsDB = {}
+local TurretNamesList = {}
+pcall(function() 
+    TurretsDB = require(ReplicatedStorage.Databases.Turrets) 
+    for turretName, _ in pairs(TurretsDB) do table.insert(TurretNamesList, turretName) end
+    table.sort(TurretNamesList)
+end)
+if #TurretNamesList == 0 then TurretNamesList = {"Pea Shooter", "Revolver", "Gatling Gun", "Plasma Rifle"} end
+
+local function GetBaseDPS(turretName)
+    local data = TurretsDB[turretName]
+    if data and data.Damage then return data.Damage * (data.FireRate or 1) end
+    return 0
+end
+
+-- == SEAMLESS SAVE SYSTEM ==
+getgenv().Config = {
+    AutoCollect = false,
+    AutoSwap = false,     
+    AutoUpgrade = false,
+    MaxUpgradeLevel = 85,
+    AutoClaimRewards = false,
+    AutoSpin = false,
+    AutoBuyShop = false,
+    ShopItems = {"Galaxy Oil", "HyperClock"},
+    AutoBuyMapTurrets = false,
+    TargetMapTurrets = {"Gatling Gun"}
+}
+
+if isfile and isfile(SaveFileName) then
+    pcall(function()
+        local data = HttpService:JSONDecode(readfile(SaveFileName))
+        for key, value in pairs(data) do getgenv().Config[key] = value end
+    end)
+end
+
+local function SaveSettings()
+    pcall(function() if writefile then writefile(SaveFileName, HttpService:JSONEncode(getgenv().Config)) end end)
+end
+
+local function VirtualClick(button)
+    if not button then return end
+    pcall(function() firesignal(button.MouseButton1Click) end)
+    pcall(function() firesignal(button.MouseButton1Down) end)
+    pcall(function() firesignal(button.Activated) end)
+    pcall(function() for _, conn in ipairs(getconnections(button.MouseButton1Click)) do conn:Fire() end end)
+end
+
+local function FirePrompt(actionText)
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") and obj.ActionText == actionText then
+            pcall(function() fireproximityprompt(obj, 1, true) end)
+            pcall(function() fireproximityprompt(obj) end)
+        end
+    end
+end
+
+-- ==========================================
+-- GPS PLOT FINDER
+-- ==========================================
+local function GetMyPlot()
+    local plotsFolder = Workspace:FindFirstChild("Plots")
+    if not plotsFolder then return nil end
+
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local myPos = LocalPlayer.Character.HumanoidRootPart.Position
+        local closestPlot, closestDist = nil, 150 
+        
+        for _, plot in ipairs(plotsFolder:GetChildren()) do
+            if plot:IsA("Model") and plot.PrimaryPart then
+                local dist = (plot.PrimaryPart.Position - myPos).Magnitude
+                if dist < closestDist then
+                    closestDist = dist
+                    closestPlot = plot
+                end
+            end
+        end
+        if closestPlot then return closestPlot end
+    end
+    return nil
+end
+
+-- ==========================================
+-- LOAD RAYFIELD UI
+-- ==========================================
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Window = Rayfield:CreateWindow({
+    Name = "🧟 Zombie Farm | Webz Hub v67",
+    LoadingTitle = "Loading Webz Hub v67...",
+    LoadingSubtitle = "Hyper-Fast Upgrades Enabled",
+    ConfigurationSaving = { Enabled = false },
+    KeySystem = false
+})
+
+-- ==========================================
+-- UI TABS 
+-- ==========================================
+local MainTab = Window:CreateTab("🎁 Main Auto", 4483362458)
+
+MainTab:CreateSection("Plot Management (STAND ON BASE!)")
+MainTab:CreateToggle({Name = "Auto-Collect Plot Cash (1s)", CurrentValue = getgenv().Config.AutoCollect, Callback = function(Value) getgenv().Config.AutoCollect = Value; SaveSettings() end})
+
+MainTab:CreateToggle({Name = "Smart Auto-Upgrade (Fast)", CurrentValue = getgenv().Config.AutoUpgrade, Callback = function(Value) getgenv().Config.AutoUpgrade = Value; SaveSettings() end})
+MainTab:CreateSlider({
+    Name = "Max Upgrade Level",
+    Range = {1, 200},
+    Increment = 1,
+    Suffix = "Lvl",
+    CurrentValue = getgenv().Config.MaxUpgradeLevel,
+    Callback = function(Value) getgenv().Config.MaxUpgradeLevel = Value; SaveSettings() end,
+})
+
+MainTab:CreateToggle({Name = "Smart Auto-Swap (Runs every 10s)", CurrentValue = getgenv().Config.AutoSwap, Callback = function(Value) getgenv().Config.AutoSwap = Value; SaveSettings() end})
+
+MainTab:CreateSection("Free Rewards & Gacha")
+MainTab:CreateToggle({Name = "Auto-Claim All UI Rewards", CurrentValue = getgenv().Config.AutoClaimRewards, Callback = function(Value) getgenv().Config.AutoClaimRewards = Value; SaveSettings() end})
+MainTab:CreateToggle({Name = "Enable Auto-Spin (Roll!)", CurrentValue = getgenv().Config.AutoSpin, Callback = function(Value) getgenv().Config.AutoSpin = Value; SaveSettings() end})
+
+local TurretTab = Window:CreateTab("🔫 Auto-Buy Turrets", 4483362458)
+TurretTab:CreateToggle({Name = "Enable Specific Turret Auto-Buy", CurrentValue = getgenv().Config.AutoBuyMapTurrets, Callback = function(Value) getgenv().Config.AutoBuyMapTurrets = Value; SaveSettings() end})
+TurretTab:CreateDropdown({Name = "Select Turrets to Buy", Options = TurretNamesList, CurrentOption = getgenv().Config.TargetMapTurrets, MultipleOptions = true, Callback = function(Options) getgenv().Config.TargetMapTurrets = Options; SaveSettings() end})
+
+local ShopTab = Window:CreateTab("🛒 Auto Shop", 4483362458)
+ShopTab:CreateToggle({Name = "Smart Auto-Buy Items (Timer Sync)", CurrentValue = getgenv().Config.AutoBuyShop, Callback = function(Value) getgenv().Config.AutoBuyShop = Value; SaveSettings() end})
+ShopTab:CreateDropdown({Name = "Select Items to Buy", Options = {"Shiny Oil", "Rainbow Oil", "Galaxy Oil", "Acid Oil", "OverClock", "SuperClock", "HyperClock"}, CurrentOption = getgenv().Config.ShopItems, MultipleOptions = true, Callback = function(Options) getgenv().Config.ShopItems = Options; SaveSettings() end})
+
+local CreditTab = Window:CreateTab("📜 Credits", 4483362458)
+CreditTab:CreateLabel("Script & Hub Engine created by: webz")
+CreditTab:CreateLabel("V67: Custom Max Level Slider & Hyper-Fast Upgrades")
+
+Rayfield:Notify({Title = "Webz Hub v67 Loaded!", Content = "Upgrades are now lightning fast.", Duration = 4, Image = 4483362458})
+
+-- ==========================================
+-- BACKGROUND LOOPS (HYPER-OPTIMIZED)
+-- ==========================================
+
+-- 1. FAST LOOP (1 Second) - Cash, Spin, Slabs
+task.spawn(function()
+    while task.wait(1) do
+        if getgenv().Config.AutoCollect then FirePrompt("Collect") end
+        if getgenv().Config.AutoSpin then FirePrompt("Roll!") end
+        
+        if getgenv().Config.AutoBuyMapTurrets then
+            for _, prompt in ipairs(Workspace:GetDescendants()) do
+                if prompt:IsA("ProximityPrompt") and prompt.Name == "TurretBuy" then
+                    if table.find(getgenv().Config.TargetMapTurrets, prompt.ObjectText) then
+                        pcall(function() fireproximityprompt(prompt, 1, true) end)
+                        pcall(function() fireproximityprompt(prompt) end)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- 2. SMART AUTO-SWAP LOOP (10 Seconds)
+task.spawn(function()
+    while task.wait(10) do
+        if getgenv().Config.AutoSwap then
+            local myPlot = GetMyPlot()
+            if myPlot and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                
+                local bestTool, bestDPS = nil, -1
+                local allTools = LocalPlayer.Backpack:GetChildren()
+                for _, t in ipairs(LocalPlayer.Character:GetChildren()) do table.insert(allTools, t) end
+                
+                for _, tool in ipairs(allTools) do
+                    if tool:IsA("Tool") and TurretsDB[tool.Name] then
+                        local baseDPS = GetBaseDPS(tool.Name)
+                        if baseDPS > bestDPS then
+                            bestDPS = baseDPS
+                            bestTool = tool
+                        end
+                    end
+                end
+                
+                if bestTool then
+                    LocalPlayer.Character.Humanoid:EquipTool(bestTool)
+                    task.wait(0.5) 
+                    
+                    local emptySlabPrompt = nil
+                    for _, prompt in ipairs(myPlot:GetDescendants()) do
+                        if prompt:IsA("ProximityPrompt") then
+                            local act = prompt.ActionText:lower()
+                            if act:match("place") or act:match("equip") or act:match("build") then
+                                emptySlabPrompt = prompt
+                                break
+                            end
+                        end
+                    end
+                    
+                    if emptySlabPrompt then
+                        pcall(function() fireproximityprompt(emptySlabPrompt, 1, true) end)
+                        pcall(function() fireproximityprompt(emptySlabPrompt) end)
+                    else
+                        local weakestModel, weakestDPS = nil, math.huge
+                        local turretsFolder = myPlot:FindFirstChild("Turrets")
+                        
+                        if turretsFolder then
+                            for _, obj in ipairs(turretsFolder:GetChildren()) do
+                                if obj:IsA("Model") and TurretsDB[obj.Name] then
+                                    local baseDPS = GetBaseDPS(obj.Name)
+                                    if baseDPS < weakestDPS then
+                                        weakestDPS = baseDPS
+                                        weakestModel = obj
+                                    end
+                                end
+                            end
+                        end
+                        
+                        if weakestModel and bestDPS > weakestDPS then
+                            local turretId = weakestModel:GetAttribute("TurretId")
+                            local gridCell = weakestModel:GetAttribute("GridCell")
+                            
+                            pcall(function() CoreEvents.TurretPickup:FireServer(weakestModel) end)
+                            if turretId then pcall(function() CoreEvents.TurretPickup:FireServer(turretId) end) end
+                            if gridCell then pcall(function() CoreEvents.TurretPickup:FireServer(gridCell) end) end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- 3. HYPER-FAST AUTO-UPGRADE LOOP (0.1 Seconds)
+task.spawn(function()
+    while task.wait(0.1) do
+        if getgenv().Config.AutoUpgrade then
+            local myPlot = GetMyPlot()
+            if myPlot then
+                local turretsFolder = myPlot:FindFirstChild("Turrets")
+                if turretsFolder then
+                    for _, obj in ipairs(turretsFolder:GetChildren()) do
+                        if obj:IsA("Model") and TurretsDB[obj.Name] then
+                            local currentLevel = obj:GetAttribute("TurretLevel") or 1
+                            
+                            -- Upgrades super fast until the slider limit is reached
+                            if currentLevel < getgenv().Config.MaxUpgradeLevel then
+                                local turretId = obj:GetAttribute("TurretId")
+                                local gridCell = obj:GetAttribute("GridCell")
+                                
+                                pcall(function() CoreEvents.TurretUpgrade:FireServer(obj) end)
+                                if turretId then pcall(function() CoreEvents.TurretUpgrade:FireServer(turretId) end) end
+                                if gridCell then pcall(function() CoreEvents.TurretUpgrade:FireServer(gridCell) end) end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- 4. SMART AUTO-SHOP (Dynamic Restock Timer)
+task.spawn(function()
+    while true do
+        if getgenv().Config.AutoBuyShop then
+            FirePrompt("Open Shop")
+            task.wait(1) 
+            
+            local sleepTime = 5 
+            
+            for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
+                if gui:IsA("TextLabel") and table.find(getgenv().Config.ShopItems, gui.Text) then
+                    local parent = gui.Parent
+                    if parent then
+                        local buyBtn = parent:FindFirstChild("Buy")
+                        if buyBtn and buyBtn:IsA("ImageButton") then VirtualClick(buyBtn) end
+                    end
+                end
+                
+                if gui:IsA("TextLabel") and gui.Text:match("RESTOCK IN (%d+):(%d+)") then
+                    local m, s = gui.Text:match("RESTOCK IN (%d+):(%d+)")
+                    if m and s then
+                        local totalSeconds = (tonumber(m) * 60) + tonumber(s)
+                        if totalSeconds > 0 then
+                            sleepTime = totalSeconds + 2 
+                        end
+                    end
+                end
+            end
+            
+            task.wait(sleepTime) 
+        else
+            task.wait(5) 
+        end
+    end
+end)
+
+-- 5. REWARDS LOOP (10 Seconds)
+task.spawn(function()
+    while task.wait(10) do
+        if getgenv().Config.AutoClaimRewards then
+            for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
+                if gui:IsA("ImageButton") and gui.Name == "Claim" then VirtualClick(gui) end
+                if gui:IsA("TextLabel") and gui.Text == "CLAIM!" then
+                    local parent = gui.Parent
+                    if parent and parent:IsA("ImageButton") then VirtualClick(parent) end
+                end
+            end
+        end
+    end
+end)
