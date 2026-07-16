@@ -30,21 +30,34 @@ end
 -- == SEAMLESS SAVE SYSTEM ==
 getgenv().Config = {
     AutoCollect = false,
-    AutoSwap = false,     
+    CollectInterval = 1,
+    
+    AutoSwap = false,
+    SwapInterval = 10,
+    
     AutoUpgrade = false,
+    UpgradeInterval = 0.1,
     MaxUpgradeLevel = 85,
+    
     AutoClaimRewards = false,
+    RewardsInterval = 10,
+    
     AutoSpin = false,
+    
     AutoBuyShop = false,
     ShopItems = {"Galaxy Oil", "HyperClock"},
+    
     AutoBuyMapTurrets = false,
     TargetMapTurrets = {"Gatling Gun"}
 }
 
+-- Smart Load: Keeps default new values if save file is old!
 if isfile and isfile(SaveFileName) then
     pcall(function()
         local data = HttpService:JSONDecode(readfile(SaveFileName))
-        for key, value in pairs(data) do getgenv().Config[key] = value end
+        for key, value in pairs(data) do 
+            if getgenv().Config[key] ~= nil then getgenv().Config[key] = value end
+        end
     end)
 end
 
@@ -101,7 +114,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "🧟 Zombie Farm | Webz Hub v67",
     LoadingTitle = "Loading Webz Hub v67...",
-    LoadingSubtitle = "Hyper-Fast Upgrades Enabled",
+    LoadingSubtitle = "Custom Intervals Update",
     ConfigurationSaving = { Enabled = false },
     KeySystem = false
 })
@@ -112,22 +125,41 @@ local Window = Rayfield:CreateWindow({
 local MainTab = Window:CreateTab("🎁 Main Auto", 4483362458)
 
 MainTab:CreateSection("Plot Management (STAND ON BASE!)")
-MainTab:CreateToggle({Name = "Auto-Collect Plot Cash (1s)", CurrentValue = getgenv().Config.AutoCollect, Callback = function(Value) getgenv().Config.AutoCollect = Value; SaveSettings() end})
-
-MainTab:CreateToggle({Name = "Smart Auto-Upgrade (Fast)", CurrentValue = getgenv().Config.AutoUpgrade, Callback = function(Value) getgenv().Config.AutoUpgrade = Value; SaveSettings() end})
+MainTab:CreateToggle({Name = "Auto-Collect Plot Cash", CurrentValue = getgenv().Config.AutoCollect, Callback = function(Value) getgenv().Config.AutoCollect = Value; SaveSettings() end})
 MainTab:CreateSlider({
-    Name = "Max Upgrade Level",
-    Range = {1, 200},
-    Increment = 1,
-    Suffix = "Lvl",
-    CurrentValue = getgenv().Config.MaxUpgradeLevel,
-    Callback = function(Value) getgenv().Config.MaxUpgradeLevel = Value; SaveSettings() end,
+    Name = "Collect Interval", Range = {1, 60}, Increment = 1, Suffix = "s", CurrentValue = getgenv().Config.CollectInterval,
+    Callback = function(Value) getgenv().Config.CollectInterval = Value; SaveSettings() end,
 })
 
-MainTab:CreateToggle({Name = "Smart Auto-Swap (Runs every 10s)", CurrentValue = getgenv().Config.AutoSwap, Callback = function(Value) getgenv().Config.AutoSwap = Value; SaveSettings() end})
+MainTab:CreateToggle({Name = "Smart Auto-Upgrade", CurrentValue = getgenv().Config.AutoUpgrade, Callback = function(Value) getgenv().Config.AutoUpgrade = Value; SaveSettings() end})
+MainTab:CreateSlider({
+    Name = "Max Upgrade Level", Range = {1, 200}, Increment = 1, Suffix = "Lvl", CurrentValue = getgenv().Config.MaxUpgradeLevel,
+    Callback = function(Value) getgenv().Config.MaxUpgradeLevel = Value; SaveSettings() end,
+})
+MainTab:CreateSlider({
+    Name = "Upgrade Speed", Range = {0.1, 5}, Increment = 0.1, Suffix = "s", CurrentValue = getgenv().Config.UpgradeInterval,
+    Callback = function(Value) getgenv().Config.UpgradeInterval = Value; SaveSettings() end,
+})
+
+MainTab:CreateToggle({Name = "Smart Auto-Swap", CurrentValue = getgenv().Config.AutoSwap, Callback = function(Value) getgenv().Config.AutoSwap = Value; SaveSettings() end})
+MainTab:CreateSlider({
+    Name = "Swap Interval", Range = {1, 60}, Increment = 1, Suffix = "s", CurrentValue = getgenv().Config.SwapInterval,
+    Callback = function(Value) 
+        getgenv().Config.SwapInterval = Value; 
+        SaveSettings()
+        if Value < 10 then
+            Rayfield:Notify({Title = "⚠️ Lag Warning", Content = "Setting Auto-Swap below 10 seconds may cause lag or FPS drops!", Duration = 4})
+        end
+    end,
+})
 
 MainTab:CreateSection("Free Rewards & Gacha")
 MainTab:CreateToggle({Name = "Auto-Claim All UI Rewards", CurrentValue = getgenv().Config.AutoClaimRewards, Callback = function(Value) getgenv().Config.AutoClaimRewards = Value; SaveSettings() end})
+MainTab:CreateSlider({
+    Name = "Rewards Interval", Range = {5, 120}, Increment = 5, Suffix = "s", CurrentValue = getgenv().Config.RewardsInterval,
+    Callback = function(Value) getgenv().Config.RewardsInterval = Value; SaveSettings() end,
+})
+
 MainTab:CreateToggle({Name = "Enable Auto-Spin (Roll!)", CurrentValue = getgenv().Config.AutoSpin, Callback = function(Value) getgenv().Config.AutoSpin = Value; SaveSettings() end})
 
 local TurretTab = Window:CreateTab("🔫 Auto-Buy Turrets", 4483362458)
@@ -140,18 +172,26 @@ ShopTab:CreateDropdown({Name = "Select Items to Buy", Options = {"Shiny Oil", "R
 
 local CreditTab = Window:CreateTab("📜 Credits", 4483362458)
 CreditTab:CreateLabel("Script & Hub Engine created by: webz")
-CreditTab:CreateLabel("V67: Custom Max Level Slider & Hyper-Fast Upgrades")
+CreditTab:CreateLabel("V67: Fully Custom Loop Intervals & Lag Protections")
 
-Rayfield:Notify({Title = "Webz Hub v67 Loaded!", Content = "Upgrades are now lightning fast.", Duration = 4, Image = 4483362458})
+Rayfield:Notify({Title = "Webz Hub v67 Loaded!", Content = "Custom Sliders are now active.", Duration = 4, Image = 4483362458})
 
 -- ==========================================
--- BACKGROUND LOOPS (HYPER-OPTIMIZED)
+-- BACKGROUND LOOPS (DYNAMIC INTERVALS)
 -- ==========================================
 
--- 1. FAST LOOP (1 Second) - Cash, Spin, Slabs
+-- 1. AUTO-COLLECT LOOP
+task.spawn(function()
+    while true do
+        local waitTime = getgenv().Config.CollectInterval or 1
+        task.wait(waitTime)
+        if getgenv().Config.AutoCollect then FirePrompt("Collect") end
+    end
+end)
+
+-- 2. AUTO-SPIN & TURRET BUY LOOP (Fast)
 task.spawn(function()
     while task.wait(1) do
-        if getgenv().Config.AutoCollect then FirePrompt("Collect") end
         if getgenv().Config.AutoSpin then FirePrompt("Roll!") end
         
         if getgenv().Config.AutoBuyMapTurrets then
@@ -167,9 +207,12 @@ task.spawn(function()
     end
 end)
 
--- 2. SMART AUTO-SWAP LOOP (10 Seconds)
+-- 3. SMART AUTO-SWAP LOOP
 task.spawn(function()
-    while task.wait(10) do
+    while true do
+        local waitTime = getgenv().Config.SwapInterval or 10
+        task.wait(waitTime)
+        
         if getgenv().Config.AutoSwap then
             local myPlot = GetMyPlot()
             if myPlot and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
@@ -222,6 +265,7 @@ task.spawn(function()
                             end
                         end
                         
+                        -- FAILPROOF CHECK: Only swaps if best is strictly greater!
                         if weakestModel and bestDPS > weakestDPS then
                             local turretId = weakestModel:GetAttribute("TurretId")
                             local gridCell = weakestModel:GetAttribute("GridCell")
@@ -237,9 +281,12 @@ task.spawn(function()
     end
 end)
 
--- 3. HYPER-FAST AUTO-UPGRADE LOOP (0.1 Seconds)
+-- 4. AUTO-UPGRADE LOOP
 task.spawn(function()
-    while task.wait(0.1) do
+    while true do
+        local waitTime = getgenv().Config.UpgradeInterval or 0.1
+        task.wait(waitTime)
+        
         if getgenv().Config.AutoUpgrade then
             local myPlot = GetMyPlot()
             if myPlot then
@@ -249,7 +296,6 @@ task.spawn(function()
                         if obj:IsA("Model") and TurretsDB[obj.Name] then
                             local currentLevel = obj:GetAttribute("TurretLevel") or 1
                             
-                            -- Upgrades super fast until the slider limit is reached
                             if currentLevel < getgenv().Config.MaxUpgradeLevel then
                                 local turretId = obj:GetAttribute("TurretId")
                                 local gridCell = obj:GetAttribute("GridCell")
@@ -266,7 +312,7 @@ task.spawn(function()
     end
 end)
 
--- 4. SMART AUTO-SHOP (Dynamic Restock Timer)
+-- 5. SMART AUTO-SHOP (Dynamic Restock Timer)
 task.spawn(function()
     while true do
         if getgenv().Config.AutoBuyShop then
@@ -302,9 +348,12 @@ task.spawn(function()
     end
 end)
 
--- 5. REWARDS LOOP (10 Seconds)
+-- 6. REWARDS LOOP
 task.spawn(function()
-    while task.wait(10) do
+    while true do
+        local waitTime = getgenv().Config.RewardsInterval or 10
+        task.wait(waitTime)
+        
         if getgenv().Config.AutoClaimRewards then
             for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
                 if gui:IsA("ImageButton") and gui.Name == "Claim" then VirtualClick(gui) end
