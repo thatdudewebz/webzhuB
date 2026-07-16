@@ -1,5 +1,5 @@
 -- ==========================================
--- 🧟 ZOMBIE Farm | WEBZ HUB V67
+-- 🧟 ZOMBIE FARM | WEBZ HUB V67
 -- Created by: webz
 -- ==========================================
 local Players = game:GetService("Players")
@@ -27,19 +27,14 @@ local function GetBaseDPS(turretName)
     return 0
 end
 
--- CALCULATES TOTAL POWER FOR TIE-BREAKERS!
 local function GetTotalPower(obj)
     local level = obj:GetAttribute("TurretLevel") or obj:GetAttribute("Level") or 1
     if type(level) ~= "number" then level = tonumber(level) or 1 end
-    
     local power = level
-    
     local oil = obj:GetAttribute("Oil")
     if oil and oil ~= "" and oil ~= "None" then power = power + 1000 end
-    
     local clock = obj:GetAttribute("Clock")
     if clock and clock ~= "" and clock ~= "None" then power = power + 500 end
-    
     return power
 end
 
@@ -47,28 +42,23 @@ end
 getgenv().Config = {
     AutoCollect = false,
     CollectInterval = 1,
-    
     AutoSwap = false,
-    DeepPowerScan = false, -- NEW V67 CONFIG
+    DeepPowerScan = false, 
     SwapInterval = 10,
-    
     AutoUpgrade = false,
     UpgradeInterval = 0.1,
     MaxUpgradeLevel = 85,
-    
     AutoClaimRewards = false,
     RewardsInterval = 10,
-    
     AutoSpin = false,
-    
     AutoBuyShop = false,
     ShopItems = {"Galaxy Oil", "HyperClock"},
-    
     AutoBuyMapTurrets = false,
-    TargetMapTurrets = {"Gatling Gun"}
+    TargetMapTurrets = {"Gatling Gun"},
+    UseWebhook = false,
+    WebhookURL = ""
 }
 
--- Smart Load
 if isfile and isfile(SaveFileName) then
     pcall(function()
         local data = HttpService:JSONDecode(readfile(SaveFileName))
@@ -82,6 +72,44 @@ local function SaveSettings()
     pcall(function() if writefile then writefile(SaveFileName, HttpService:JSONEncode(getgenv().Config)) end end)
 end
 
+-- == DISCORD WEBHOOK ENGINE (INSTANT + ANTI-DUPLICATE) ==
+local WebhookCooldowns = {}
+
+local function SendWebhook(throttleKey, cooldownSecs, title, description, color)
+    local url = getgenv().Config.WebhookURL
+    if not url or url == "" or not getgenv().Config.UseWebhook then return end
+
+    if throttleKey and cooldownSecs then
+        if WebhookCooldowns[throttleKey] and (tick() - WebhookCooldowns[throttleKey]) < cooldownSecs then
+            return 
+        end
+        WebhookCooldowns[throttleKey] = tick()
+    end
+
+    local embed = {
+        ["title"] = title,
+        ["description"] = description,
+        ["color"] = color or 7506394,
+        ["timestamp"] = DateTime.now():ToIsoDate(),
+        ["footer"] = {["text"] = "Webz Hub v67 | Zombie Farm Automater"}
+    }
+
+    local payload = HttpService:JSONEncode({
+        ["username"] = "Webz Hub Logger",
+        ["embeds"] = {embed}
+    })
+
+    local requestFunc = syn and syn.request or http and http.request or http_request or fluxus and fluxus.request or request
+    if requestFunc then
+        task.spawn(function()
+            pcall(function()
+                requestFunc({Url = url, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = payload})
+            end)
+        end)
+    end
+end
+
+-- == VIRTUAL ENGINE ==
 local function VirtualClick(button)
     if not button then return end
     pcall(function() firesignal(button.MouseButton1Click) end)
@@ -99,9 +127,6 @@ local function FirePrompt(actionText)
     end
 end
 
--- ==========================================
--- GPS PLOT FINDER
--- ==========================================
 local function GetMyPlot()
     local plotsFolder = Workspace:FindFirstChild("Plots")
     if not plotsFolder then return nil end
@@ -130,7 +155,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "🧟 Zombie Farm | Webz Hub v67",
     LoadingTitle = "Loading Webz Hub v67...",
-    LoadingSubtitle = "Deep Scan Optimization",
+    LoadingSubtitle = "Instant Remote Events Active",
     ConfigurationSaving = { Enabled = false },
     KeySystem = false
 })
@@ -139,56 +164,21 @@ local Window = Rayfield:CreateWindow({
 -- UI TABS 
 -- ==========================================
 local MainTab = Window:CreateTab("🎁 Main Auto", 4483362458)
-
 MainTab:CreateSection("Plot Management (STAND ON BASE!)")
 MainTab:CreateToggle({Name = "Auto-Collect Plot Cash", CurrentValue = getgenv().Config.AutoCollect, Callback = function(Value) getgenv().Config.AutoCollect = Value; SaveSettings() end})
-MainTab:CreateSlider({
-    Name = "Collect Interval", Range = {1, 60}, Increment = 1, Suffix = "s", CurrentValue = getgenv().Config.CollectInterval,
-    Callback = function(Value) getgenv().Config.CollectInterval = Value; SaveSettings() end,
-})
+MainTab:CreateSlider({Name = "Collect Interval", Range = {1, 60}, Increment = 1, Suffix = "s", CurrentValue = getgenv().Config.CollectInterval, Callback = function(Value) getgenv().Config.CollectInterval = Value; SaveSettings() end})
 
 MainTab:CreateToggle({Name = "Smart Auto-Upgrade", CurrentValue = getgenv().Config.AutoUpgrade, Callback = function(Value) getgenv().Config.AutoUpgrade = Value; SaveSettings() end})
-MainTab:CreateSlider({
-    Name = "Max Upgrade Level", Range = {1, 200}, Increment = 1, Suffix = "Lvl", CurrentValue = getgenv().Config.MaxUpgradeLevel,
-    Callback = function(Value) getgenv().Config.MaxUpgradeLevel = Value; SaveSettings() end,
-})
-MainTab:CreateSlider({
-    Name = "Upgrade Speed", Range = {0.1, 5}, Increment = 0.1, Suffix = "s", CurrentValue = getgenv().Config.UpgradeInterval,
-    Callback = function(Value) getgenv().Config.UpgradeInterval = Value; SaveSettings() end,
-})
+MainTab:CreateSlider({Name = "Max Upgrade Level", Range = {1, 200}, Increment = 1, Suffix = "Lvl", CurrentValue = getgenv().Config.MaxUpgradeLevel, Callback = function(Value) getgenv().Config.MaxUpgradeLevel = Value; SaveSettings() end})
+MainTab:CreateSlider({Name = "Upgrade Speed", Range = {0.1, 5}, Increment = 0.1, Suffix = "s", CurrentValue = getgenv().Config.UpgradeInterval, Callback = function(Value) getgenv().Config.UpgradeInterval = Value; SaveSettings() end})
 
 MainTab:CreateToggle({Name = "Smart Auto-Swap", CurrentValue = getgenv().Config.AutoSwap, Callback = function(Value) getgenv().Config.AutoSwap = Value; SaveSettings() end})
-
--- NEW: DEEP SCAN TOGGLE
-MainTab:CreateToggle({
-    Name = "Deep Power Scan (Buffs/Level Ties)", 
-    CurrentValue = getgenv().Config.DeepPowerScan, 
-    Callback = function(Value) 
-        getgenv().Config.DeepPowerScan = Value; 
-        SaveSettings()
-        if Value then
-            Rayfield:Notify({Title = "⚠️ Lag Warning", Content = "Deep Power Scan uses heavy math calculations. May lower FPS on slower devices!", Duration = 4})
-        end
-    end
-})
-
-MainTab:CreateSlider({
-    Name = "Swap Interval", Range = {1, 60}, Increment = 1, Suffix = "s", CurrentValue = getgenv().Config.SwapInterval,
-    Callback = function(Value) 
-        getgenv().Config.SwapInterval = Value; 
-        SaveSettings()
-        if Value < 10 then
-            Rayfield:Notify({Title = "⚠️ Lag Warning", Content = "Setting Auto-Swap below 10 seconds may cause lag!", Duration = 4})
-        end
-    end,
-})
+MainTab:CreateToggle({Name = "Deep Power Scan (Buffs/Level Ties)", CurrentValue = getgenv().Config.DeepPowerScan, Callback = function(Value) getgenv().Config.DeepPowerScan = Value; SaveSettings() end})
+MainTab:CreateSlider({Name = "Swap Interval", Range = {1, 60}, Increment = 1, Suffix = "s", CurrentValue = getgenv().Config.SwapInterval, Callback = function(Value) getgenv().Config.SwapInterval = Value; SaveSettings() end})
 
 MainTab:CreateSection("Free Rewards & Gacha")
 MainTab:CreateToggle({Name = "Auto-Claim All UI Rewards", CurrentValue = getgenv().Config.AutoClaimRewards, Callback = function(Value) getgenv().Config.AutoClaimRewards = Value; SaveSettings() end})
-MainTab:CreateSlider({
-    Name = "Rewards Interval", Range = {5, 120}, Increment = 5, Suffix = "s", CurrentValue = getgenv().Config.RewardsInterval,
-    Callback = function(Value) getgenv().Config.RewardsInterval = Value; SaveSettings() end,
-})
+MainTab:CreateSlider({Name = "Rewards Interval", Range = {5, 120}, Increment = 5, Suffix = "s", CurrentValue = getgenv().Config.RewardsInterval, Callback = function(Value) getgenv().Config.RewardsInterval = Value; SaveSettings() end})
 MainTab:CreateToggle({Name = "Enable Auto-Spin (Roll!)", CurrentValue = getgenv().Config.AutoSpin, Callback = function(Value) getgenv().Config.AutoSpin = Value; SaveSettings() end})
 
 local TurretTab = Window:CreateTab("🔫 Auto-Buy Turrets", 4483362458)
@@ -199,10 +189,74 @@ local ShopTab = Window:CreateTab("🛒 Auto Shop", 4483362458)
 ShopTab:CreateToggle({Name = "Smart Auto-Buy Items (Timer Sync)", CurrentValue = getgenv().Config.AutoBuyShop, Callback = function(Value) getgenv().Config.AutoBuyShop = Value; SaveSettings() end})
 ShopTab:CreateDropdown({Name = "Select Items to Buy", Options = {"Shiny Oil", "Rainbow Oil", "Galaxy Oil", "Acid Oil", "OverClock", "SuperClock", "HyperClock"}, CurrentOption = getgenv().Config.ShopItems, MultipleOptions = true, Callback = function(Options) getgenv().Config.ShopItems = Options; SaveSettings() end})
 
+local SettingsTab = Window:CreateTab("⚙️ Settings", 4483362458)
+SettingsTab:CreateSection("Discord Webhook Logging")
+SettingsTab:CreateToggle({Name = "Enable Webhook Logging", CurrentValue = getgenv().Config.UseWebhook, Callback = function(Value) getgenv().Config.UseWebhook = Value; SaveSettings() end})
+SettingsTab:CreateInput({
+    Name = "Webhook URL", PlaceholderText = "Paste your Discord Webhook URL here...", RemoveTextAfterFocusLost = false,
+    Callback = function(Text) getgenv().Config.WebhookURL = Text; SaveSettings() end
+})
+SettingsTab:CreateButton({
+    Name = "Test Webhook",
+    Callback = function()
+        if getgenv().Config.WebhookURL ~= "" then
+            SendWebhook("TestHook", 0, "🧪 Webhook Test Successful!", "Webz Hub is connected to this channel.", 65280)
+            Rayfield:Notify({Title = "Sent!", Content = "Check Discord.", Duration = 3})
+        else
+            Rayfield:Notify({Title = "Error", Content = "Paste URL first!", Duration = 3})
+        end
+    end
+})
+
 local CreditTab = Window:CreateTab("📜 Credits", 4483362458)
 CreditTab:CreateLabel("Script & Hub Engine created by: webz")
 
-Rayfield:Notify({Title = "Webz Hub v67 Loaded!", Content = "Optimization loaded. Toggle Deep Scan if needed.", Duration = 4, Image = 4483362458})
+Rayfield:Notify({Title = "Webz Hub v67 Loaded!", Content = "Ready to dominate.", Duration = 4, Image = 4483362458})
+
+if getgenv().Config.UseWebhook and getgenv().Config.WebhookURL ~= "" then
+    SendWebhook("StartHook", 0, "🟢 Webz Hub Injected", "User **" .. LocalPlayer.Name .. "** has loaded the script successfully.", 65280)
+end
+
+-- ==========================================
+-- 📡 NATIVE REMOTE EVENT LISTENER
+-- ==========================================
+-- Connects directly to the server's notification remote to catch global events!
+pcall(function()
+    local notifyRemote = ReplicatedStorage.Events.Global.Core:FindFirstChild("Notify")
+    if notifyRemote then
+        notifyRemote.OnClientEvent:Connect(function(data)
+            local msg = type(data) == "table" and (data.Message or data.Text) or tostring(data)
+            -- 10-second debounce so you don't get spammed if the server broadcasts it twice
+            SendWebhook("Notify_"..msg, 10, "🔔 Game Notification", msg, 16766720) -- Yellow
+        end)
+    end
+end)
+
+-- UI Event Tracker (Instantly catches Nuke/Inspector/Bloodmoon events when the UI updates)
+task.spawn(function()
+    local trackedEventGuis = {}
+    while task.wait(5) do
+        for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
+            if gui:IsA("TextLabel") and gui.Name == "EventName" then
+                if not trackedEventGuis[gui] then
+                    trackedEventGuis[gui] = true
+                    gui:GetPropertyChangedSignal("Text"):Connect(function()
+                        local newEvent = gui.Text
+                        if newEvent ~= "" and newEvent ~= "EventName" and newEvent:lower() ~= "none" then
+                            local desc = ""
+                            local descUI = gui.Parent and gui.Parent:FindFirstChild("EventDesc")
+                            if descUI and descUI:IsA("TextLabel") then desc = descUI.Text end
+                            
+                            -- 60s cooldown per event type to prevent massive spam
+                            SendWebhook("Event_"..newEvent, 60, "📢 In-Game Event: " .. newEvent, desc, 16711680) -- Red
+                        end
+                    end)
+                end
+            end
+        end
+    end
+end)
+
 
 -- ==========================================
 -- BACKGROUND LOOPS (DYNAMIC INTERVALS)
@@ -211,13 +265,12 @@ Rayfield:Notify({Title = "Webz Hub v67 Loaded!", Content = "Optimization loaded.
 -- 1. AUTO-COLLECT LOOP
 task.spawn(function()
     while true do
-        local waitTime = getgenv().Config.CollectInterval or 1
-        task.wait(waitTime)
+        task.wait(getgenv().Config.CollectInterval or 1)
         if getgenv().Config.AutoCollect then FirePrompt("Collect") end
     end
 end)
 
--- 2. AUTO-SPIN & TURRET BUY LOOP (Fast)
+-- 2. AUTO-SPIN & TURRET BUY LOOP
 task.spawn(function()
     while task.wait(1) do
         if getgenv().Config.AutoSpin then FirePrompt("Roll!") end
@@ -225,6 +278,10 @@ task.spawn(function()
             for _, prompt in ipairs(Workspace:GetDescendants()) do
                 if prompt:IsA("ProximityPrompt") and prompt.Name == "TurretBuy" then
                     if table.find(getgenv().Config.TargetMapTurrets, prompt.ObjectText) then
+                        local tName = prompt.ObjectText
+                        -- Only 2s cooldown so it logs every purchase cleanly without pcall spam!
+                        SendWebhook("BuyTurret_"..tName, 2, "🔫 Auto-Bought Turret", "Purchased **" .. tName .. "** from the map!", 3447003)
+                        
                         pcall(function() fireproximityprompt(prompt, 1, true) end)
                         pcall(function() fireproximityprompt(prompt) end)
                     end
@@ -234,17 +291,15 @@ task.spawn(function()
     end
 end)
 
--- 3. SMART AUTO-SWAP LOOP (With Deep Scan Option)
+-- 3. SMART AUTO-SWAP LOOP
 task.spawn(function()
     while true do
-        local waitTime = getgenv().Config.SwapInterval or 10
-        task.wait(waitTime)
+        task.wait(getgenv().Config.SwapInterval or 10)
         
         if getgenv().Config.AutoSwap then
             local myPlot = GetMyPlot()
             if myPlot and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
                 
-                -- FIND BEST INVENTORY TOWER
                 local bestTool, bestBaseDPS, bestTotalPower = nil, -1, -1
                 local allTools = LocalPlayer.Backpack:GetChildren()
                 for _, t in ipairs(LocalPlayer.Character:GetChildren()) do table.insert(allTools, t) end
@@ -256,13 +311,10 @@ task.spawn(function()
                         if getgenv().Config.DeepPowerScan then totalPower = GetTotalPower(tool) end
                         
                         if baseDPS > bestBaseDPS then
-                            bestBaseDPS = baseDPS
-                            bestTotalPower = totalPower
-                            bestTool = tool
+                            bestBaseDPS = baseDPS; bestTotalPower = totalPower; bestTool = tool
                         elseif getgenv().Config.DeepPowerScan and baseDPS == bestBaseDPS then
                             if totalPower > bestTotalPower then
-                                bestTotalPower = totalPower
-                                bestTool = tool
+                                bestTotalPower = totalPower; bestTool = tool
                             end
                         end
                     end
@@ -287,7 +339,6 @@ task.spawn(function()
                         pcall(function() fireproximityprompt(emptySlabPrompt, 1, true) end)
                         pcall(function() fireproximityprompt(emptySlabPrompt) end)
                     else
-                        -- FIND WEAKEST PLACED TOWER
                         local weakestModel, weakestBaseDPS, weakestTotalPower = nil, math.huge, math.huge
                         local turretsFolder = myPlot:FindFirstChild("Turrets")
                         
@@ -299,20 +350,16 @@ task.spawn(function()
                                     if getgenv().Config.DeepPowerScan then totalPower = GetTotalPower(obj) end
                                     
                                     if baseDPS < weakestBaseDPS then
-                                        weakestBaseDPS = baseDPS
-                                        weakestTotalPower = totalPower
-                                        weakestModel = obj
+                                        weakestBaseDPS = baseDPS; weakestTotalPower = totalPower; weakestModel = obj
                                     elseif getgenv().Config.DeepPowerScan and baseDPS == weakestBaseDPS then
                                         if totalPower < weakestTotalPower then
-                                            weakestTotalPower = totalPower
-                                            weakestModel = obj
+                                            weakestTotalPower = totalPower; weakestModel = obj
                                         end
                                     end
                                 end
                             end
                         end
                         
-                        -- FAILPROOF SWAP EXECUTION:
                         if weakestModel then
                             local shouldSwap = false
                             if bestBaseDPS > weakestBaseDPS then
@@ -324,6 +371,11 @@ task.spawn(function()
                             if shouldSwap then
                                 local turretId = weakestModel:GetAttribute("TurretId")
                                 local gridCell = weakestModel:GetAttribute("GridCell")
+                                
+                                -- INSTANT WEBHOOK (2s cooldown per unique turretId to prevent double-pings)
+                                local description = string.format("Swapped out **%s** *(DPS: %s)* \nPlaced **%s** *(DPS: %s)*!", 
+                                    weakestModel.Name, tostring(weakestBaseDPS), bestTool.Name, tostring(bestBaseDPS))
+                                SendWebhook("Swap_"..tostring(turretId), 2, "🔄 Tower Swapped", description, 16753920) 
                                 
                                 pcall(function() CoreEvents.TurretPickup:FireServer(weakestModel) end)
                                 if turretId then pcall(function() CoreEvents.TurretPickup:FireServer(turretId) end) end
@@ -340,9 +392,7 @@ end)
 -- 4. AUTO-UPGRADE LOOP
 task.spawn(function()
     while true do
-        local waitTime = getgenv().Config.UpgradeInterval or 0.1
-        task.wait(waitTime)
-        
+        task.wait(getgenv().Config.UpgradeInterval or 0.1)
         if getgenv().Config.AutoUpgrade then
             local myPlot = GetMyPlot()
             if myPlot then
@@ -366,7 +416,7 @@ task.spawn(function()
     end
 end)
 
--- 5. SMART AUTO-SHOP (Dynamic Restock Timer)
+-- 5. SMART AUTO-SHOP 
 task.spawn(function()
     while true do
         if getgenv().Config.AutoBuyShop then
@@ -378,7 +428,12 @@ task.spawn(function()
                     local parent = gui.Parent
                     if parent then
                         local buyBtn = parent:FindFirstChild("Buy")
-                        if buyBtn and buyBtn:IsA("ImageButton") then VirtualClick(buyBtn) end
+                        if buyBtn and buyBtn:IsA("ImageButton") then 
+                            
+                            -- INSTANT WEBHOOK (10s cooldown per item type so it doesn't flood if you buy multiple oils at once)
+                            SendWebhook("BuyItem_"..gui.Text, 10, "🛒 Shop Purchase", "Successfully purchased **" .. gui.Text .. "** from the Auto-Shop!", 7506394)
+                            VirtualClick(buyBtn) 
+                        end
                     end
                 end
                 if gui:IsA("TextLabel") and gui.Text:match("RESTOCK IN (%d+):(%d+)") then
@@ -399,8 +454,7 @@ end)
 -- 6. REWARDS LOOP
 task.spawn(function()
     while true do
-        local waitTime = getgenv().Config.RewardsInterval or 10
-        task.wait(waitTime)
+        task.wait(getgenv().Config.RewardsInterval or 10)
         if getgenv().Config.AutoClaimRewards then
             for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
                 if gui:IsA("ImageButton") and gui.Name == "Claim" then VirtualClick(gui) end
