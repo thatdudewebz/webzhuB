@@ -1,5 +1,7 @@
+repeat task.wait() until game:IsLoaded()
+
 -- ==========================================
--- 🧟 ZOMBIE FARM | WEBZ HUB V67
+-- 🧟 ZOMBIE FARM | WEBZ HUB V67.⁶⁹ (SIGMA EDITION)
 -- Created by: webz
 -- ==========================================
 local Players = game:GetService("Players")
@@ -9,7 +11,17 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 
 local CoreEvents = ReplicatedStorage:WaitForChild("Events"):WaitForChild("Global"):WaitForChild("Core")
-local SaveFileName = "WebzHubV67_Settings.json"
+local SaveFileName = "WebzHubV67_69_Settings.json"
+
+-- == LIVE SIGMA STATS ==
+getgenv().SessionStats = {
+    Swaps = 0,
+    ItemsBought = 0,
+    TurretsBought = 0,
+    RewardsClaimed = 0,
+    OilsApplied = 0,
+    ClocksApplied = 0
+}
 
 -- Dynamically load Turrets
 local TurretsDB = {}
@@ -20,6 +32,42 @@ pcall(function()
     table.sort(TurretNamesList)
 end)
 if #TurretNamesList == 0 then TurretNamesList = {"Pea Shooter", "Revolver", "Gatling Gun", "Plasma Rifle"} end
+
+local ShopItemsList = {"Shiny Oil", "Rainbow Oil", "Galaxy Oil", "Acid Oil", "OverClock", "SuperClock", "HyperClock"}
+local OilsList = {"Shiny Oil", "Rainbow Oil", "Galaxy Oil", "Acid Oil"}
+local ClocksList = {"OverClock", "SuperClock", "HyperClock"}
+
+-- == DEEP POWER SCAN ENGINE (REAL DPS) ==
+local function GetRealDPS(obj)
+    if not obj then return 0 end
+    
+    local directDPS = obj:GetAttribute("DPS") or obj:GetAttribute("dps") or obj:GetAttribute("BaseDPS")
+    if not directDPS then
+        local val = obj:FindFirstChild("DPS") or obj:FindFirstChild("dps") or obj:FindFirstChild("BaseDPS")
+        if val and (val:IsA("NumberValue") or val:IsA("IntValue")) then directDPS = val.Value end
+    end
+    if directDPS and type(directDPS) == "number" then return directDPS end
+    
+    local actualDmg = obj:GetAttribute("Damage") or obj:GetAttribute("damage")
+    if not actualDmg then
+        local val = obj:FindFirstChild("Damage") or obj:FindFirstChild("damage")
+        if val and (val:IsA("NumberValue") or val:IsA("IntValue")) then actualDmg = val.Value end
+    end
+    
+    local actualRate = obj:GetAttribute("FireRate") or obj:GetAttribute("Firerate") or obj:GetAttribute("firerate")
+    if not actualRate then
+        local val = obj:FindFirstChild("FireRate") or obj:FindFirstChild("Firerate") or obj:FindFirstChild("firerate")
+        if val and (val:IsA("NumberValue") or val:IsA("IntValue")) then actualRate = val.Value end
+    end
+    
+    if type(actualDmg) == "number" and type(actualRate) == "number" then return actualDmg * actualRate end
+    
+    local turretName = typeof(obj) == "string" and obj or obj.Name
+    if TurretsDB[turretName] and TurretsDB[turretName].Damage then
+        return TurretsDB[turretName].Damage * (TurretsDB[turretName].FireRate or 1)
+    end
+    return 0
+end
 
 local function GetBaseDPS(turretName)
     local data = TurretsDB[turretName]
@@ -40,16 +88,30 @@ end
 
 -- == SEAMLESS SAVE SYSTEM ==
 getgenv().Config = {
+    MasterPause = false,
+    
     AutoCollect = false, CollectInterval = 1,
-    AutoSwap = false, DeepPowerScan = false, SwapInterval = 10,
+    AutoSwap = false, SwapMode = "Base DPS (Level 1 Stats)", DeepPowerScan = false, SwapInterval = 10,
     AutoUpgrade = false, UpgradeInterval = 0.1, MaxUpgradeLevel = 85,
     AutoClaimRewards = false, RewardsInterval = 10,
-    AutoSpin = false,
+    AutoSpin = false, SpinDelay = 1.0, FailproofSpin = false,
     AutoBuyShop = false, ShopItems = {"Galaxy Oil", "HyperClock"},
     AutoBuyMapTurrets = false, TargetMapTurrets = {"Gatling Gun"},
+    
+    -- Aura Modifiers
+    AutoOil = false, SelectedOil = "Galaxy Oil", OilTargetTurrets = {},
+    AutoClock = false, SelectedClock = "HyperClock", ClockTargetTurrets = {},
+    
+    AutoZombieCashBoost = false, CapZombieCashBoost = 200,
+    AutoZombieLuck = false, CapZombieLuck = 200,
+    AutoTurretSpinLuck = false, CapTurretSpinLuck = 200,
+    
     UseWebhook = false, WebhookURL = "",
-    PingOwner = false, DiscordID = "",
-    PingEvents = {"Inspector", "Lucky", "Blood Moon", "Nuke"} -- NEW: Selected Events to Ping
+    PingOwner = false, DiscordID = "", 
+    PingEvents = {"Inspector", "Lucky", "Blood Moon", "Nuke", "Boss"},
+    PingTurrets = {},
+    PingShopItems = {},
+    AutoRejoin = false
 }
 
 if isfile and isfile(SaveFileName) then
@@ -65,17 +127,14 @@ local function SaveSettings()
     pcall(function() if writefile then writefile(SaveFileName, HttpService:JSONEncode(getgenv().Config)) end end)
 end
 
--- == DISCORD WEBHOOK ENGINE (WITH CUSTOM PINGS) ==
+-- == DISCORD WEBHOOK ENGINE ==
 local WebhookCooldowns = {}
-
-local function SendWebhook(throttleKey, cooldownSecs, title, description, color, forcePing)
+local function SendWebhook(throttleKey, cooldownSecs, title, description, color, pingType)
     local url = getgenv().Config.WebhookURL
     if not url or url == "" or not getgenv().Config.UseWebhook then return end
 
     if throttleKey and cooldownSecs then
-        if WebhookCooldowns[throttleKey] and (tick() - WebhookCooldowns[throttleKey]) < cooldownSecs then
-            return 
-        end
+        if WebhookCooldowns[throttleKey] and (tick() - WebhookCooldowns[throttleKey]) < cooldownSecs then return end
         WebhookCooldowns[throttleKey] = tick()
     end
 
@@ -84,26 +143,29 @@ local function SendWebhook(throttleKey, cooldownSecs, title, description, color,
         ["description"] = description,
         ["color"] = color or 7506394,
         ["timestamp"] = DateTime.now():ToIsoDate(),
-        ["footer"] = {["text"] = "Webz Hub v67 | Zombie Farm Automater"}
+        ["footer"] = {["text"] = "Webz Hub v67.⁶⁹ | Level 10 Gyatt Edition"}
     }
 
     local contentMsg = nil
-    if forcePing and getgenv().Config.PingOwner and getgenv().Config.DiscordID ~= "" then
-        contentMsg = "<@" .. getgenv().Config.DiscordID .. "> ⚠️ CRITICAL ALERT!"
+    if pingType and getgenv().Config.PingOwner and getgenv().Config.DiscordID ~= "" then
+        if pingType == "Critical" then
+            contentMsg = "🚨 <@" .. getgenv().Config.DiscordID .. "> **CRITICAL ALERT:** System or Connection Issue!"
+        elseif pingType == "Turret" then
+            contentMsg = "🔫 <@" .. getgenv().Config.DiscordID .. "> **Turret Ping!**"
+        elseif pingType == "Item" then
+            contentMsg = "🛒 <@" .. getgenv().Config.DiscordID .. "> **Item Ping!**"
+        elseif pingType == "Event" then
+            contentMsg = "📢 <@" .. getgenv().Config.DiscordID .. "> **Event Ping!**"
+        end
     end
 
-    local payloadData = {
-        ["username"] = "Webz Hub Logger",
-        ["embeds"] = {embed}
-    }
+    local payloadData = {["username"] = "Webz Hub Logger", ["embeds"] = {embed}}
     if contentMsg then payloadData["content"] = contentMsg end
-
-    local payload = HttpService:JSONEncode(payloadData)
 
     local requestFunc = syn and syn.request or http and http.request or http_request or fluxus and fluxus.request or request
     if requestFunc then
         task.spawn(function()
-            pcall(function() requestFunc({Url = url, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = payload}) end)
+            pcall(function() requestFunc({Url = url, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode(payloadData)}) end)
         end)
     end
 end
@@ -119,7 +181,7 @@ end
 
 local function FirePrompt(actionText)
     for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("ProximityPrompt") and obj.ActionText == actionText then
+        if obj:IsA("ProximityPrompt") and obj.ActionText == actionText and obj.Enabled then
             pcall(function() fireproximityprompt(obj, 1, true) end)
             pcall(function() fireproximityprompt(obj) end)
         end
@@ -129,17 +191,13 @@ end
 local function GetMyPlot()
     local plotsFolder = Workspace:FindFirstChild("Plots")
     if not plotsFolder then return nil end
-
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local myPos = LocalPlayer.Character.HumanoidRootPart.Position
         local closestPlot, closestDist = nil, 150 
         for _, plot in ipairs(plotsFolder:GetChildren()) do
             if plot:IsA("Model") and plot.PrimaryPart then
                 local dist = (plot.PrimaryPart.Position - myPos).Magnitude
-                if dist < closestDist then
-                    closestDist = dist
-                    closestPlot = plot
-                end
+                if dist < closestDist then closestDist = dist; closestPlot = plot end
             end
         end
         if closestPlot then return closestPlot end
@@ -152,63 +210,390 @@ end
 -- ==========================================
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
-    Name = "🧟 Zombie Farm | Webz Hub v67",
-    LoadingTitle = "Loading Webz Hub v67...",
-    LoadingSubtitle = "Custom Event Pings Active",
+    Name = "🧟 Webz Hub | Sigma v67.⁶⁹",
+    LoadingTitle = "Loading Webz Hub v67.⁶⁹...",
+    LoadingSubtitle = "Skibidi Toilet Rizz Active",
     ConfigurationSaving = { Enabled = false },
     KeySystem = false
 })
+local UI_Loaded = false
+local DashboardUI = {}
 
 -- ==========================================
--- UI TABS 
+-- TAB 1: 🏠 DASHBOARD
 -- ==========================================
-local MainTab = Window:CreateTab("🎁 Main Auto", 4483362458)
-MainTab:CreateSection("Plot Management (STAND ON BASE!)")
-MainTab:CreateToggle({Name = "Auto-Collect Plot Cash", CurrentValue = getgenv().Config.AutoCollect, Callback = function(Value) getgenv().Config.AutoCollect = Value; SaveSettings() end})
-MainTab:CreateSlider({Name = "Collect Interval", Range = {1, 60}, Increment = 1, Suffix = "s", CurrentValue = getgenv().Config.CollectInterval, Callback = function(Value) getgenv().Config.CollectInterval = Value; SaveSettings() end})
+local DashTab = Window:CreateTab("🏠 Dashboard", 4483362458)
 
-MainTab:CreateToggle({Name = "Smart Auto-Upgrade", CurrentValue = getgenv().Config.AutoUpgrade, Callback = function(Value) getgenv().Config.AutoUpgrade = Value; SaveSettings() end})
-MainTab:CreateSlider({Name = "Max Upgrade Level", Range = {1, 200}, Increment = 1, Suffix = "Lvl", CurrentValue = getgenv().Config.MaxUpgradeLevel, Callback = function(Value) getgenv().Config.MaxUpgradeLevel = Value; SaveSettings() end})
-MainTab:CreateSlider({Name = "Upgrade Speed", Range = {0.1, 5}, Increment = 0.1, Suffix = "s", CurrentValue = getgenv().Config.UpgradeInterval, Callback = function(Value) getgenv().Config.UpgradeInterval = Value; SaveSettings() end})
+DashboardUI.MasterToggle = DashTab:CreateToggle({
+    Name = "🛑 MASTER PAUSE (Kill Switch)", 
+    CurrentValue = getgenv().Config.MasterPause, 
+    Info = "CRITICAL: Flipping this to ON instantly freezes ALL background loops (Collecting, Swapping, Upgrading, etc.). Flip it back OFF to resume automation.",
+    Callback = function(Value) 
+        getgenv().Config.MasterPause = Value
+        if Value then
+            Rayfield:Notify({Title = "Paused", Content = "All automation temporarily stopped.", Duration = 3})
+        else
+            Rayfield:Notify({Title = "Resumed", Content = "Automation loops running again.", Duration = 3})
+        end
+    end
+})
 
-MainTab:CreateToggle({Name = "Smart Auto-Swap", CurrentValue = getgenv().Config.AutoSwap, Callback = function(Value) getgenv().Config.AutoSwap = Value; SaveSettings() end})
-MainTab:CreateToggle({Name = "Deep Power Scan (Buffs/Level Ties)", CurrentValue = getgenv().Config.DeepPowerScan, Callback = function(Value) getgenv().Config.DeepPowerScan = Value; SaveSettings() end})
-MainTab:CreateSlider({Name = "Swap Interval", Range = {1, 60}, Increment = 1, Suffix = "s", CurrentValue = getgenv().Config.SwapInterval, Callback = function(Value) getgenv().Config.SwapInterval = Value; SaveSettings() end})
+DashboardUI.StatsBoard = DashTab:CreateParagraph({
+    Title = "📊 Live Session Stats",
+    Content = "Towers Swapped: 0\nItems Bought: 0\nMap Turrets Bought: 0\nRewards Claimed: 0\nGyatts Oiled Up / Overclocked: 0"
+})
 
-MainTab:CreateSection("Free Rewards & Gacha")
-MainTab:CreateToggle({Name = "Auto-Claim All UI Rewards", CurrentValue = getgenv().Config.AutoClaimRewards, Callback = function(Value) getgenv().Config.AutoClaimRewards = Value; SaveSettings() end})
-MainTab:CreateSlider({Name = "Rewards Interval", Range = {5, 120}, Increment = 5, Suffix = "s", CurrentValue = getgenv().Config.RewardsInterval, Callback = function(Value) getgenv().Config.RewardsInterval = Value; SaveSettings() end})
-MainTab:CreateToggle({Name = "Enable Auto-Spin (Roll!)", CurrentValue = getgenv().Config.AutoSpin, Callback = function(Value) getgenv().Config.AutoSpin = Value; SaveSettings() end})
+local function UpdateDashboard()
+    if DashboardUI.StatsBoard then
+        DashboardUI.StatsBoard:Set({
+            Title = "📊 Live Session Stats",
+            Content = string.format("Towers Swapped: %d\nItems Bought: %d\nMap Turrets Bought: %d\nRewards Claimed: %d\nGyatts Oiled Up / Overclocked: %d", 
+                getgenv().SessionStats.Swaps, 
+                getgenv().SessionStats.ItemsBought, 
+                getgenv().SessionStats.TurretsBought, 
+                getgenv().SessionStats.RewardsClaimed,
+                getgenv().SessionStats.OilsApplied + getgenv().SessionStats.ClocksApplied
+            )
+        })
+    end
+end
 
-local TurretTab = Window:CreateTab("🔫 Auto-Buy Turrets", 4483362458)
-TurretTab:CreateToggle({Name = "Enable Specific Turret Auto-Buy", CurrentValue = getgenv().Config.AutoBuyMapTurrets, Callback = function(Value) getgenv().Config.AutoBuyMapTurrets = Value; SaveSettings() end})
-TurretTab:CreateDropdown({Name = "Select Turrets to Buy", Options = TurretNamesList, CurrentOption = getgenv().Config.TargetMapTurrets, MultipleOptions = true, Callback = function(Options) getgenv().Config.TargetMapTurrets = Options; SaveSettings() end})
+DashTab:CreateButton({
+    Name = "🗑️ Destroy UI (Unload Script)",
+    Callback = function()
+        Rayfield:Destroy()
+        getgenv().Config.MasterPause = true
+    end
+})
 
+-- ==========================================
+-- TAB 2: 🏗️ PLOT MANAGEMENT & UPGRADES
+-- ==========================================
+local PlotTab = Window:CreateTab("🏗️ Plot & Upgrades", 4483362458)
+
+PlotTab:CreateSection("Tower Management")
+PlotTab:CreateToggle({
+    Name = "Auto-Collect Plot Cash", 
+    CurrentValue = getgenv().Config.AutoCollect, 
+    Info = "Virtually fires the 'Collect' Proximity Prompt on your base without your character having to walk over to it.", 
+    Callback = function(Value) getgenv().Config.AutoCollect = Value; SaveSettings() end
+})
+PlotTab:CreateSlider({
+    Name = "Collect Interval", 
+    Range = {1, 60}, 
+    Increment = 1, 
+    Suffix = "s", 
+    CurrentValue = getgenv().Config.CollectInterval, 
+    Info = "How many seconds the script waits between each cash collection attempt.",
+    Callback = function(Value) getgenv().Config.CollectInterval = Value; SaveSettings() end
+})
+
+PlotTab:CreateToggle({
+    Name = "Smart Auto-Upgrade Towers", 
+    CurrentValue = getgenv().Config.AutoUpgrade, 
+    Info = "Rapidly fires the hidden 'TurretUpgrade' remote event directly to the server for every single tower placed on your base.", 
+    Callback = function(Value) getgenv().Config.AutoUpgrade = Value; SaveSettings() end
+})
+PlotTab:CreateSlider({
+    Name = "Max Tower Level", 
+    Range = {1, 200}, 
+    Increment = 1, 
+    Suffix = "Lvl", 
+    CurrentValue = getgenv().Config.MaxUpgradeLevel, 
+    Info = "The exact level the auto-upgrader will stop spending your cash on placed towers.",
+    Callback = function(Value) getgenv().Config.MaxUpgradeLevel = Value; SaveSettings() end
+})
+
+PlotTab:CreateSection("Player Upgrades (Auto-Buy)")
+PlotTab:CreateToggle({
+    Name = "Auto-Upgrade Zombie Cash Boost", 
+    CurrentValue = getgenv().Config.AutoZombieCashBoost, 
+    Info = "Scans your player data and clicks the UI 'Buy' button for the Zombie Cash Boost upgrade until it hits your set cap.", 
+    Callback = function(Value) getgenv().Config.AutoZombieCashBoost = Value; SaveSettings() end
+})
+PlotTab:CreateInput({
+    Name = "Max Level Cap (Cash Boost)", 
+    PlaceholderText = "Current Cap: " .. tostring(getgenv().Config.CapZombieCashBoost), 
+    NumbersOnly = true, 
+    RemoveTextAfterFocusLost = false, 
+    Info = "Type a number (e.g. 200). The script mathematically checks your current level and stops buying when it reaches this number.",
+    Callback = function(Text) local num = tonumber(Text); if num then getgenv().Config.CapZombieCashBoost = num; SaveSettings() end end
+})
+
+PlotTab:CreateToggle({
+    Name = "Auto-Upgrade Zombie Luck", 
+    CurrentValue = getgenv().Config.AutoZombieLuck, 
+    Info = "Scans your player data and clicks the UI 'Buy' button for the Zombie Luck upgrade until it hits your set cap.", 
+    Callback = function(Value) getgenv().Config.AutoZombieLuck = Value; SaveSettings() end
+})
+PlotTab:CreateInput({
+    Name = "Max Level Cap (Zombie Luck)", 
+    PlaceholderText = "Current Cap: " .. tostring(getgenv().Config.CapZombieLuck), 
+    NumbersOnly = true, 
+    RemoveTextAfterFocusLost = false, 
+    Info = "Type a number. The script stops upgrading Zombie Luck when your level equals or exceeds this cap.",
+    Callback = function(Text) local num = tonumber(Text); if num then getgenv().Config.CapZombieLuck = num; SaveSettings() end end
+})
+
+PlotTab:CreateToggle({
+    Name = "Auto-Upgrade Turret Spin Luck", 
+    CurrentValue = getgenv().Config.AutoTurretSpinLuck, 
+    Info = "Scans your player data and clicks the UI 'Buy' button for the Turret Luck upgrade until it hits your set cap.", 
+    Callback = function(Value) getgenv().Config.AutoTurretSpinLuck = Value; SaveSettings() end
+})
+PlotTab:CreateInput({
+    Name = "Max Level Cap (Turret Luck)", 
+    PlaceholderText = "Current Cap: " .. tostring(getgenv().Config.CapTurretSpinLuck), 
+    NumbersOnly = true, 
+    RemoveTextAfterFocusLost = false, 
+    Info = "Type a number. The script stops upgrading Spin Luck when your level equals or exceeds this cap.",
+    Callback = function(Text) local num = tonumber(Text); if num then getgenv().Config.CapTurretSpinLuck = num; SaveSettings() end end
+})
+
+-- ==========================================
+-- TAB 3: 🔄 SMART SWAP ENGINE
+-- ==========================================
+local SwapTab = Window:CreateTab("🔄 Smart Swap", 4483362458)
+SwapTab:CreateSection("The Automation Engine")
+
+SwapTab:CreateToggle({
+    Name = "Enable Smart Auto-Swap", 
+    CurrentValue = getgenv().Config.AutoSwap, 
+    Info = "Constantly compares your Backpack tools to your placed towers. If it finds a mathematically stronger tower in your bag, it unequips the weak one and places the strong one.", 
+    Callback = function(Value) getgenv().Config.AutoSwap = Value; SaveSettings(); if UI_Loaded and Value then Rayfield:Notify({Title = "Engine Active", Content = "Monitoring inventory and plot...", Duration = 3}) end end
+})
+SwapTab:CreateDropdown({
+    Name = "Swap Calculation Mode", 
+    Options = {"Base DPS (Level 1 Stats)", "Real DPS (Current Applied Stats)"}, 
+    CurrentOption = {getgenv().Config.SwapMode}, 
+    MultipleOptions = false, 
+    Info = "[Base DPS] reads the raw Level 1 stats from the game database. [Real DPS] actually reads the physical tower to see if it's currently buffed with Oils or Levels.", 
+    Callback = function(Option) getgenv().Config.SwapMode = Option[1]; SaveSettings() end
+})
+SwapTab:CreateToggle({
+    Name = "Deep Power Scan (Tie-Breaker)", 
+    CurrentValue = getgenv().Config.DeepPowerScan, 
+    Info = "If using Base DPS mode and two towers are exactly the same, this adds hidden 'points' for Oils (+1000) and Clocks (+500) so you don't accidentally remove a buffed tower.", 
+    Callback = function(Value) getgenv().Config.DeepPowerScan = Value; SaveSettings() end
+})
+SwapTab:CreateSlider({
+    Name = "Swap Interval", 
+    Range = {1, 60}, 
+    Increment = 1, 
+    Suffix = "s", 
+    CurrentValue = getgenv().Config.SwapInterval, 
+    Info = "How often the script calculates all your DPS and attempts a swap. Setting this too low (below 10s) causes lag due to the heavy math calculations.",
+    Callback = function(Value) getgenv().Config.SwapInterval = Value; SaveSettings() end
+})
+
+-- ==========================================
+-- TAB 4: 💦 AURA MODIFIERS (Oils & Clocks)
+-- ==========================================
+local ModTab = Window:CreateTab("💦 Aura Modifiers", 4483362458)
+
+ModTab:CreateSection("💦 Oiling Up")
+ModTab:CreateToggle({
+    Name = "Auto-Oil Up Selected Gyatts", 
+    CurrentValue = getgenv().Config.AutoOil, 
+    Info = "Automatically fires the server to apply your chosen Oil to the specific Turrets you check below.",
+    Callback = function(Value) getgenv().Config.AutoOil = Value; SaveSettings() end
+})
+ModTab:CreateDropdown({
+    Name = "Select the Oil", 
+    Options = OilsList, 
+    CurrentOption = {getgenv().Config.SelectedOil}, 
+    MultipleOptions = false, 
+    Info = "Which oil do you want to drench your towers in?",
+    Callback = function(Option) getgenv().Config.SelectedOil = Option[1]; SaveSettings() end
+})
+ModTab:CreateDropdown({
+    Name = "Select Towers to Oil Up", 
+    Options = TurretNamesList, 
+    CurrentOption = getgenv().Config.OilTargetTurrets, 
+    MultipleOptions = true, 
+    Info = "Check the specific towers you want to automatically oil up.",
+    Callback = function(Options) getgenv().Config.OilTargetTurrets = Options; SaveSettings() end
+})
+
+ModTab:CreateSection("⏳ Overclocking")
+ModTab:CreateToggle({
+    Name = "Auto-Overclock Selected Gyatts", 
+    CurrentValue = getgenv().Config.AutoClock, 
+    Info = "Automatically fires the server to apply your chosen Clock to the specific Turrets you check below.",
+    Callback = function(Value) getgenv().Config.AutoClock = Value; SaveSettings() end
+})
+ModTab:CreateDropdown({
+    Name = "Select the Clock", 
+    Options = ClocksList, 
+    CurrentOption = {getgenv().Config.SelectedClock}, 
+    MultipleOptions = false, 
+    Info = "Which clock do you want to apply?",
+    Callback = function(Option) getgenv().Config.SelectedClock = Option[1]; SaveSettings() end
+})
+ModTab:CreateDropdown({
+    Name = "Select Towers to Overclock", 
+    Options = TurretNamesList, 
+    CurrentOption = getgenv().Config.ClockTargetTurrets, 
+    MultipleOptions = true, 
+    Info = "Check the specific towers you want to automatically overclock.",
+    Callback = function(Options) getgenv().Config.ClockTargetTurrets = Options; SaveSettings() end
+})
+
+-- ==========================================
+-- TAB 5: 🎁 GACHA & REWARDS
+-- ==========================================
+local GachaTab = Window:CreateTab("🎁 Gacha & Rewards", 4483362458)
+GachaTab:CreateSection("Turret Spinning")
+
+GachaTab:CreateToggle({
+    Name = "Enable Auto-Spin (Roll!)", 
+    CurrentValue = getgenv().Config.AutoSpin, 
+    Info = "Virtually triggers the 'Roll!' Proximity Prompt on the gacha machine endlessly.", 
+    Callback = function(Value) getgenv().Config.AutoSpin = Value; SaveSettings() end
+})
+GachaTab:CreateSlider({
+    Name = "Auto-Spin Delay", 
+    Range = {0, 10}, 
+    Increment = 0.1, 
+    Suffix = "s", 
+    CurrentValue = getgenv().Config.SpinDelay, 
+    Info = "Adds a custom delay between each spin so the server has time to register your new turret, preventing UI glitches or accidentally spending cash on the wrong roll.", 
+    Callback = function(Value) getgenv().Config.SpinDelay = Value; SaveSettings() end
+})
+GachaTab:CreateToggle({
+    Name = "Failproof Spin (Pause if Target Spawns)", 
+    CurrentValue = getgenv().Config.FailproofSpin, 
+    Info = "A brilliant safety net: If a Turret you want to buy spawns on a map slab, but you don't have the cash yet, this completely pauses Auto-Spin so you don't accidentally re-roll and lose it!", 
+    Callback = function(Value) getgenv().Config.FailproofSpin = Value; SaveSettings() end
+})
+
+GachaTab:CreateSection("Free Rewards")
+GachaTab:CreateToggle({
+    Name = "Auto-Claim All UI Rewards", 
+    CurrentValue = getgenv().Config.AutoClaimRewards, 
+    Info = "Scans your entire screen for any ImageButton or TextLabel that says 'CLAIM!' and forcefully clicks it to collect playtime/daily gifts.", 
+    Callback = function(Value) getgenv().Config.AutoClaimRewards = Value; SaveSettings() end
+})
+GachaTab:CreateSlider({
+    Name = "Rewards Interval", 
+    Range = {5, 120}, 
+    Increment = 5, 
+    Suffix = "s", 
+    CurrentValue = getgenv().Config.RewardsInterval, 
+    Info = "How often the script runs a deep UI scan looking for claim buttons.",
+    Callback = function(Value) getgenv().Config.RewardsInterval = Value; SaveSettings() end
+})
+
+-- ==========================================
+-- TAB 6: 🛒 AUTO SHOP
+-- ==========================================
 local ShopTab = Window:CreateTab("🛒 Auto Shop", 4483362458)
-ShopTab:CreateToggle({Name = "Smart Auto-Buy Items (Timer Sync)", CurrentValue = getgenv().Config.AutoBuyShop, Callback = function(Value) getgenv().Config.AutoBuyShop = Value; SaveSettings() end})
-ShopTab:CreateDropdown({Name = "Select Items to Buy", Options = {"Shiny Oil", "Rainbow Oil", "Galaxy Oil", "Acid Oil", "OverClock", "SuperClock", "HyperClock"}, CurrentOption = getgenv().Config.ShopItems, MultipleOptions = true, Callback = function(Options) getgenv().Config.ShopItems = Options; SaveSettings() end})
 
+ShopTab:CreateSection("Consumables Shop")
+ShopTab:CreateToggle({
+    Name = "Smart Auto-Buy Items (Timer Sync)", 
+    CurrentValue = getgenv().Config.AutoBuyShop, 
+    Info = "Extremely optimized: Physically reads the 'RESTOCK IN X:XX' text off your screen, and puts the thread completely to sleep until the exact second the shop restocks. Zero lag.", 
+    Callback = function(Value) getgenv().Config.AutoBuyShop = Value; SaveSettings() end
+})
+ShopTab:CreateDropdown({
+    Name = "Select Items to Buy", 
+    Options = ShopItemsList, 
+    CurrentOption = getgenv().Config.ShopItems, 
+    MultipleOptions = true, 
+    Info = "When the shop restocks, the script will scan the menu text and instantly click the 'Buy' button for ANY item you have checked in this list.",
+    Callback = function(Options) getgenv().Config.ShopItems = Options; SaveSettings() end
+})
+
+ShopTab:CreateSection("Map Slabs (Specific Turrets)")
+ShopTab:CreateToggle({
+    Name = "Enable Specific Turret Auto-Buy", 
+    CurrentValue = getgenv().Config.AutoBuyMapTurrets, 
+    Info = "Hyper-fast scanner that targets the 'TurretBuy' Proximity Prompts on map slabs. If the prompt's ObjectText matches your chosen turrets, it instantly buys them.", 
+    Callback = function(Value) getgenv().Config.AutoBuyMapTurrets = Value; SaveSettings() end
+})
+ShopTab:CreateDropdown({
+    Name = "Select Turrets to Buy", 
+    Options = TurretNamesList, 
+    CurrentOption = getgenv().Config.TargetMapTurrets, 
+    MultipleOptions = true, 
+    Info = "Check the boxes for the exact turrets you want. The script will ONLY trigger the purchase prompt if the turret name perfectly matches your selection.",
+    Callback = function(Options) getgenv().Config.TargetMapTurrets = Options; SaveSettings() end
+})
+
+-- ==========================================
+-- TAB 7: ⚙️ SETTINGS
+-- ==========================================
 local SettingsTab = Window:CreateTab("⚙️ Settings", 4483362458)
+
+SettingsTab:CreateSection("Safety Settings")
+SettingsTab:CreateToggle({
+    Name = "Auto-Rejoin on Disconnect", 
+    CurrentValue = getgenv().Config.AutoRejoin, 
+    Info = "Hooks into Roblox's native ErrorPrompt GUI. If it detects an Error 277 (Disconnect), it waits 2 seconds and forcefully teleports you back into the game.", 
+    Callback = function(Value) getgenv().Config.AutoRejoin = Value; SaveSettings() end
+})
+
 SettingsTab:CreateSection("Discord Webhook Logging")
-SettingsTab:CreateToggle({Name = "Enable Webhook Logging", CurrentValue = getgenv().Config.UseWebhook, Callback = function(Value) getgenv().Config.UseWebhook = Value; SaveSettings() end})
-SettingsTab:CreateInput({Name = "Webhook URL", PlaceholderText = "Paste your Discord Webhook URL here...", RemoveTextAfterFocusLost = false, Callback = function(Text) getgenv().Config.WebhookURL = Text; SaveSettings() end})
+SettingsTab:CreateToggle({
+    Name = "Enable Webhook Logging", 
+    CurrentValue = getgenv().Config.UseWebhook, 
+    Info = "Sends action logs to Discord.", 
+    Callback = function(Value) getgenv().Config.UseWebhook = Value; SaveSettings() end
+})
+SettingsTab:CreateInput({
+    Name = "Webhook URL", 
+    PlaceholderText = "Paste your Discord Webhook URL here...", 
+    RemoveTextAfterFocusLost = false, 
+    Info = "Create a Webhook in your Discord Server Settings > Integrations, copy the URL, and paste it here.",
+    Callback = function(Text) getgenv().Config.WebhookURL = Text; SaveSettings() end
+})
 
 SettingsTab:CreateSection("Custom Discord Pings")
-SettingsTab:CreateToggle({Name = "Enable Discord Pings", CurrentValue = getgenv().Config.PingOwner, Callback = function(Value) getgenv().Config.PingOwner = Value; SaveSettings() end})
-SettingsTab:CreateInput({Name = "Discord User ID", PlaceholderText = "e.g., 123456789012345678", RemoveTextAfterFocusLost = false, Callback = function(Text) getgenv().Config.DiscordID = Text; SaveSettings() end})
+SettingsTab:CreateToggle({
+    Name = "Enable Discord Pings", 
+    CurrentValue = getgenv().Config.PingOwner, 
+    Info = "If enabled, the script will add <@YourDiscordID> to the raw message content, forcing Discord to play a notification sound on your phone/PC for the filters below.", 
+    Callback = function(Value) getgenv().Config.PingOwner = Value; SaveSettings() end
+})
+SettingsTab:CreateInput({
+    Name = "Discord User ID", 
+    PlaceholderText = "e.g., 123456789012345678", 
+    RemoveTextAfterFocusLost = false, 
+    Info = "You must have Developer Mode turned on in Discord settings. Right-click your profile picture and click 'Copy User ID'. Paste the 18-digit number here.", 
+    Callback = function(Text) getgenv().Config.DiscordID = Text; SaveSettings() end
+})
+
 SettingsTab:CreateDropdown({
     Name = "Select Events to Ping For", 
     Options = {"Inspector", "Lucky", "Golden Hour", "Blood Moon", "Nuke", "Boss"}, 
     CurrentOption = getgenv().Config.PingEvents, 
     MultipleOptions = true, 
+    Info = "The script reads the EventName UI text. If it matches an event checked here, it will @ping you with an 'Event Ping!'.", 
     Callback = function(Options) getgenv().Config.PingEvents = Options; SaveSettings() end
+})
+SettingsTab:CreateDropdown({
+    Name = "Select Turrets to Ping For", 
+    Options = TurretNamesList, 
+    CurrentOption = getgenv().Config.PingTurrets, 
+    MultipleOptions = true, 
+    Info = "If the script successfully purchases a turret from a map slab that is checked here, it will @ping you with a 'Turret Ping!'.", 
+    Callback = function(Options) getgenv().Config.PingTurrets = Options; SaveSettings() end
+})
+SettingsTab:CreateDropdown({
+    Name = "Select Shop Items to Ping For", 
+    Options = ShopItemsList, 
+    CurrentOption = getgenv().Config.PingShopItems, 
+    MultipleOptions = true, 
+    Info = "If the script successfully purchases an item from the restock shop that is checked here, it will @ping you with an 'Item Ping!'.", 
+    Callback = function(Options) getgenv().Config.PingShopItems = Options; SaveSettings() end
 })
 
 SettingsTab:CreateButton({
-    Name = "Test Webhook & Ping",
+    Name = "Test Webhook & Ping", 
     Callback = function()
         if getgenv().Config.WebhookURL ~= "" then
-            SendWebhook("TestHook", 0, "🧪 Webhook Test Successful!", "If you heard a ping, Webz Hub is configured perfectly.", 65280, true)
+            SendWebhook("TestHook", 0, "🧪 Webhook Test Successful!", "If you heard a ping, Webz Hub is configured perfectly.", 65280, "Critical")
             Rayfield:Notify({Title = "Sent!", Content = "Check Discord.", Duration = 3})
         else
             Rayfield:Notify({Title = "Error", Content = "Paste URL first!", Duration = 3})
@@ -216,10 +601,8 @@ SettingsTab:CreateButton({
     end
 })
 
-local CreditTab = Window:CreateTab("📜 Credits", 4483362458)
-CreditTab:CreateLabel("Script & Hub Engine created by: webz")
-
-Rayfield:Notify({Title = "Webz Hub v67 Loaded!", Content = "Ready to dominate.", Duration = 4, Image = 4483362458})
+UI_Loaded = true
+Rayfield:Notify({Title = "Webz Hub v67.⁶⁹ Loaded!", Content = "Welcome to Ohio.", Duration = 5, Image = 4483362458})
 
 if getgenv().Config.UseWebhook and getgenv().Config.WebhookURL ~= "" then
     SendWebhook("StartHook", 0, "🟢 Webz Hub Injected", "User **" .. LocalPlayer.Name .. "** has loaded the script successfully.", 65280, false)
@@ -229,11 +612,20 @@ end
 -- 📡 NATIVE REMOTE & UI EVENT TRACKER
 -- ==========================================
 pcall(function()
+    game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
+        if child.Name == 'ErrorPrompt' and getgenv().Config.AutoRejoin then
+            SendWebhook("DisconnectLog", 0, "🔌 Disconnected!", "Error 277 detected. Attempting to auto-rejoin the server...", 16711680, "Critical")
+            task.wait(2)
+            game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+        end
+    end)
+end)
+
+pcall(function()
     local notifyRemote = ReplicatedStorage.Events.Global.Core:FindFirstChild("Notify")
     if notifyRemote then
         notifyRemote.OnClientEvent:Connect(function(data)
             local msg = type(data) == "table" and (data.Message or data.Text) or tostring(data)
-            -- Logs game notifications silently (no ping)
             SendWebhook("Notify_"..msg, 10, "🔔 Game Notification", msg, 16766720, false)
         end)
     end
@@ -242,6 +634,7 @@ end)
 task.spawn(function()
     local trackedEventGuis = {}
     while task.wait(5) do
+        if getgenv().Config.MasterPause then continue end
         for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
             if gui:IsA("TextLabel") and gui.Name == "EventName" then
                 if not trackedEventGuis[gui] then
@@ -253,16 +646,13 @@ task.spawn(function()
                             local descUI = gui.Parent and gui.Parent:FindFirstChild("EventDesc")
                             if descUI and descUI:IsA("TextLabel") then desc = descUI.Text end
                             
-                            -- CHECK IF WE SHOULD PING FOR THIS EVENT
-                            local shouldPing = false
-                            for _, selectedEvent in ipairs(getgenv().Config.PingEvents) do
-                                if newEvent:lower():match(selectedEvent:lower()) then
-                                    shouldPing = true
-                                    break
+                            local pingType = false
+                            if getgenv().Config.PingEvents then
+                                for _, selectedEvent in ipairs(getgenv().Config.PingEvents) do
+                                    if newEvent:lower():match(selectedEvent:lower()) then pingType = "Event" break end
                                 end
                             end
-                            
-                            SendWebhook("Event_"..newEvent, 60, "📢 IN-GAME EVENT: " .. newEvent, desc, 16711680, shouldPing)
+                            SendWebhook("Event_"..newEvent, 60, "📢 IN-GAME EVENT: " .. newEvent, desc, 16711680, pingType)
                         end
                     end)
                 end
@@ -272,57 +662,161 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- BACKGROUND LOOPS (DYNAMIC INTERVALS)
+-- PLAYER UPGRADES HELPER
+-- ==========================================
+local function ProcessPlayerUpgrade(upgradeName, configCapKey)
+    local cap = getgenv().Config[configCapKey] or 200
+    local currentLevel = -1 
+    local buyBtn = nil
+    
+    local searchName1 = upgradeName:lower()
+    local searchName2 = upgradeName:lower():gsub(" ", "")
+    
+    for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
+        if gui:IsA("TextLabel") then
+            local txt = gui.Text:lower()
+            if txt == searchName1 or txt:match(searchName2) or (searchName1 == "turret spin luck" and txt:match("turret") and txt:match("luck")) then
+                local parent = gui.Parent
+                if parent then
+                    for _, desc in ipairs(parent:GetDescendants()) do
+                        if desc:IsA("TextLabel") then
+                            local lvl = desc.Text:match("Lvl%.?%s*(%d+)") or desc.Text:match("Level%s*:?%s*(%d+)") or desc.Text:match("^(%d+)%s*/")
+                            if lvl then currentLevel = tonumber(lvl) end
+                        end
+                        if desc:IsA("ImageButton") or desc:IsA("TextButton") then
+                            if desc.Name:lower():match("buy") or desc.Name:lower():match("upgrade") or desc:FindFirstChild("Price") then
+                                buyBtn = desc
+                            end
+                        end
+                    end
+                    if not buyBtn and (parent:IsA("ImageButton") or parent:IsA("TextButton")) then buyBtn = parent end
+                end
+            end
+        end
+    end
+    
+    if currentLevel == -1 then
+        for _, obj in ipairs(LocalPlayer:GetDescendants()) do
+            if (obj:IsA("IntValue") or obj:IsA("NumberValue")) and obj.Name:lower():match(searchName2) then
+                currentLevel = obj.Value
+            end
+        end
+    end
+    
+    if currentLevel == -1 then return end
+    
+    if currentLevel < cap then
+        if buyBtn then VirtualClick(buyBtn) end
+        local upgradesRemote = ReplicatedStorage:FindFirstChild("Events") 
+            and ReplicatedStorage.Events:FindFirstChild("Global") 
+            and ReplicatedStorage.Events.Global:FindFirstChild("Upgrades") 
+            and ReplicatedStorage.Events.Global.Upgrades:FindFirstChild("Buy")
+            
+        if upgradesRemote then
+            pcall(function() upgradesRemote:FireServer(upgradeName) end)
+            pcall(function() upgradesRemote:FireServer(searchName2) end)
+            if searchName1 == "turret spin luck" then
+                pcall(function() upgradesRemote:FireServer("TurretLuck") end)
+                pcall(function() upgradesRemote:FireServer("SpinLuck") end)
+            end
+        end
+    end
+end
+
+-- ==========================================
+-- BACKGROUND LOOPS (THE ENGINE)
 -- ==========================================
 
 task.spawn(function()
     while true do
         task.wait(getgenv().Config.CollectInterval or 1)
-        if getgenv().Config.AutoCollect then FirePrompt("Collect") end
+        if not getgenv().Config.MasterPause and getgenv().Config.AutoCollect then FirePrompt("Collect") end
     end
 end)
 
 task.spawn(function()
-    while task.wait(1) do
-        if getgenv().Config.AutoSpin then FirePrompt("Roll!") end
-        if getgenv().Config.AutoBuyMapTurrets then
-            for _, prompt in ipairs(Workspace:GetDescendants()) do
-                if prompt:IsA("ProximityPrompt") and prompt.Name == "TurretBuy" then
-                    if table.find(getgenv().Config.TargetMapTurrets, prompt.ObjectText) then
-                        local tName = prompt.ObjectText
-                        SendWebhook("BuyTurret_"..tName, 30, "🔫 Auto-Bought Turret", "Purchased **" .. tName .. "** from the map!", 3447003, false)
-                        pcall(function() fireproximityprompt(prompt, 1, true) end)
-                        pcall(function() fireproximityprompt(prompt) end)
+    while task.wait(0.1) do
+        if not getgenv().Config.MasterPause and getgenv().Config.AutoSpin then
+            local shouldSpin = true
+            
+            if getgenv().Config.FailproofSpin and getgenv().Config.TargetMapTurrets then
+                for _, prompt in ipairs(Workspace:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") and prompt.Name == "TurretBuy" and prompt.Enabled then
+                        if table.find(getgenv().Config.TargetMapTurrets, prompt.ObjectText) then
+                            shouldSpin = false
+                            break
+                        end
                     end
+                end
+            end
+            
+            if shouldSpin then FirePrompt("Roll!") end
+            task.wait(getgenv().Config.SpinDelay)
+        end
+    end
+end)
+
+local CachedTurretPrompts = {}
+local LastCacheTime = 0
+task.spawn(function()
+    while task.wait(0.05) do
+        if not getgenv().Config.MasterPause and getgenv().Config.AutoBuyMapTurrets then
+            if tick() - LastCacheTime > 10 then
+                CachedTurretPrompts = {}
+                for _, obj in ipairs(Workspace:GetDescendants()) do
+                    if obj:IsA("ProximityPrompt") and obj.Name == "TurretBuy" then table.insert(CachedTurretPrompts, obj) end
+                end
+                LastCacheTime = tick()
+            end
+            
+            for _, prompt in ipairs(CachedTurretPrompts) do
+                if prompt.Parent and prompt.Enabled and table.find(getgenv().Config.TargetMapTurrets, prompt.ObjectText) then
+                    local tName = prompt.ObjectText
+                    local pingType = false
+                    if getgenv().Config.PingTurrets and table.find(getgenv().Config.PingTurrets, tName) then pingType = "Turret" end
+                    
+                    SendWebhook("BuyTurret_"..tName, 10, "🔫 Auto-Bought Turret", "Purchased **" .. tName .. "** from the map!", 3447003, pingType)
+                    
+                    pcall(function() fireproximityprompt(prompt, 1, true) end)
+                    pcall(function() fireproximityprompt(prompt) end)
+                    
+                    getgenv().SessionStats.TurretsBought = getgenv().SessionStats.TurretsBought + 1
+                    UpdateDashboard()
                 end
             end
         end
     end
 end)
 
+-- SMART AUTO-SWAP LOOP
 task.spawn(function()
     while true do
         task.wait(getgenv().Config.SwapInterval or 10)
-        
-        if getgenv().Config.AutoSwap then
+        if not getgenv().Config.MasterPause and getgenv().Config.AutoSwap then
             local myPlot = GetMyPlot()
             if myPlot and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
                 
-                local bestTool, bestBaseDPS, bestTotalPower = nil, -1, -1
+                local bestTool, bestDPS, bestPower = nil, -1, -1
                 local allTools = LocalPlayer.Backpack:GetChildren()
                 for _, t in ipairs(LocalPlayer.Character:GetChildren()) do table.insert(allTools, t) end
                 
                 for _, tool in ipairs(allTools) do
                     if tool:IsA("Tool") and TurretsDB[tool.Name] then
-                        local baseDPS = GetBaseDPS(tool.Name)
-                        local totalPower = 0
-                        if getgenv().Config.DeepPowerScan then totalPower = GetTotalPower(tool) end
+                        local currentDPS = 0
+                        local currentPower = 0
                         
-                        if baseDPS > bestBaseDPS then
-                            bestBaseDPS = baseDPS; bestTotalPower = totalPower; bestTool = tool
-                        elseif getgenv().Config.DeepPowerScan and baseDPS == bestBaseDPS then
-                            if totalPower > bestTotalPower then
-                                bestTotalPower = totalPower; bestTool = tool
+                        if getgenv().Config.SwapMode == "Real DPS (Current Applied Stats)" then
+                            currentDPS = GetRealDPS(tool)
+                        else
+                            currentDPS = GetBaseDPS(tool.Name)
+                            if getgenv().Config.DeepPowerScan then currentPower = GetTotalPower(tool) end
+                        end
+                        
+                        if currentDPS > bestDPS then
+                            bestDPS = currentDPS; bestPower = currentPower; bestTool = tool
+                        elseif currentDPS == bestDPS and getgenv().Config.SwapMode ~= "Real DPS (Current Applied Stats)" and getgenv().Config.DeepPowerScan then
+                            if currentPower > bestPower then
+                                bestPower = currentPower; bestTool = tool
                             end
                         end
                     end
@@ -330,16 +824,13 @@ task.spawn(function()
                 
                 if bestTool then
                     LocalPlayer.Character.Humanoid:EquipTool(bestTool)
-                    task.wait(0.5) 
+                    task.wait(0.2)
                     
                     local emptySlabPrompt = nil
                     for _, prompt in ipairs(myPlot:GetDescendants()) do
                         if prompt:IsA("ProximityPrompt") then
                             local act = prompt.ActionText:lower()
-                            if act:match("place") or act:match("equip") or act:match("build") then
-                                emptySlabPrompt = prompt
-                                break
-                            end
+                            if act:match("place") or act:match("equip") or act:match("build") then emptySlabPrompt = prompt break end
                         end
                     end
                     
@@ -347,21 +838,27 @@ task.spawn(function()
                         pcall(function() fireproximityprompt(emptySlabPrompt, 1, true) end)
                         pcall(function() fireproximityprompt(emptySlabPrompt) end)
                     else
-                        local weakestModel, weakestBaseDPS, weakestTotalPower = nil, math.huge, math.huge
+                        local weakestModel, weakestDPS, weakestPower = nil, math.huge, math.huge
                         local turretsFolder = myPlot:FindFirstChild("Turrets")
                         
                         if turretsFolder then
                             for _, obj in ipairs(turretsFolder:GetChildren()) do
                                 if obj:IsA("Model") and TurretsDB[obj.Name] then
-                                    local baseDPS = GetBaseDPS(obj.Name)
-                                    local totalPower = 0
-                                    if getgenv().Config.DeepPowerScan then totalPower = GetTotalPower(obj) end
+                                    local currentDPS = 0
+                                    local currentPower = 0
                                     
-                                    if baseDPS < weakestBaseDPS then
-                                        weakestBaseDPS = baseDPS; weakestTotalPower = totalPower; weakestModel = obj
-                                    elseif getgenv().Config.DeepPowerScan and baseDPS == weakestBaseDPS then
-                                        if totalPower < weakestTotalPower then
-                                            weakestTotalPower = totalPower; weakestModel = obj
+                                    if getgenv().Config.SwapMode == "Real DPS (Current Applied Stats)" then
+                                        currentDPS = GetRealDPS(obj)
+                                    else
+                                        currentDPS = GetBaseDPS(obj.Name)
+                                        if getgenv().Config.DeepPowerScan then currentPower = GetTotalPower(obj) end
+                                    end
+                                    
+                                    if currentDPS < weakestDPS then
+                                        weakestDPS = currentDPS; weakestPower = currentPower; weakestModel = obj
+                                    elseif currentDPS == weakestDPS and getgenv().Config.SwapMode ~= "Real DPS (Current Applied Stats)" and getgenv().Config.DeepPowerScan then
+                                        if currentPower < weakestPower then
+                                            weakestPower = currentPower; weakestModel = obj
                                         end
                                     end
                                 end
@@ -370,19 +867,25 @@ task.spawn(function()
                         
                         if weakestModel then
                             local shouldSwap = false
-                            if bestBaseDPS > weakestBaseDPS then shouldSwap = true
-                            elseif getgenv().Config.DeepPowerScan and bestBaseDPS == weakestBaseDPS and bestTotalPower > weakestTotalPower then shouldSwap = true end
+                            if bestDPS > weakestDPS then 
+                                shouldSwap = true
+                            elseif bestDPS == weakestDPS and getgenv().Config.SwapMode ~= "Real DPS (Current Applied Stats)" and getgenv().Config.DeepPowerScan and bestPower > weakestPower then 
+                                shouldSwap = true 
+                            end
                             
                             if shouldSwap then
                                 local turretId = weakestModel:GetAttribute("TurretId")
                                 local gridCell = weakestModel:GetAttribute("GridCell")
                                 
-                                local description = string.format("Swapped out **%s** *(DPS: %s)* \nPlaced **%s** *(DPS: %s)*!", weakestModel.Name, tostring(weakestBaseDPS), bestTool.Name, tostring(bestBaseDPS))
+                                local description = string.format("Swapped out **%s** *(DPS Metric: %s)* \nPlaced **%s** *(DPS Metric: %s)*!", weakestModel.Name, tostring(weakestDPS), bestTool.Name, tostring(bestDPS))
                                 SendWebhook("Swap_"..tostring(turretId), 2, "🔄 Tower Swapped", description, 16753920, false) 
                                 
                                 pcall(function() CoreEvents.TurretPickup:FireServer(weakestModel) end)
                                 if turretId then pcall(function() CoreEvents.TurretPickup:FireServer(turretId) end) end
                                 if gridCell then pcall(function() CoreEvents.TurretPickup:FireServer(gridCell) end) end
+                                
+                                getgenv().SessionStats.Swaps = getgenv().SessionStats.Swaps + 1
+                                UpdateDashboard()
                             end
                         end
                     end
@@ -395,7 +898,7 @@ end)
 task.spawn(function()
     while true do
         task.wait(getgenv().Config.UpgradeInterval or 0.1)
-        if getgenv().Config.AutoUpgrade then
+        if not getgenv().Config.MasterPause and getgenv().Config.AutoUpgrade then
             local myPlot = GetMyPlot()
             if myPlot then
                 local turretsFolder = myPlot:FindFirstChild("Turrets")
@@ -418,23 +921,99 @@ task.spawn(function()
     end
 end)
 
+-- AURA MODIFIERS LOOP (Oils & Clocks)
+task.spawn(function()
+    while task.wait(2) do
+        if not getgenv().Config.MasterPause then
+            if getgenv().Config.AutoOil or getgenv().Config.AutoClock then
+                local myPlot = GetMyPlot()
+                if myPlot then
+                    local turretsFolder = myPlot:FindFirstChild("Turrets")
+                    if turretsFolder then
+                        for _, obj in ipairs(turretsFolder:GetChildren()) do
+                            if obj:IsA("Model") and TurretsDB[obj.Name] then
+                                local turretId = obj:GetAttribute("TurretId")
+                                local gridCell = obj:GetAttribute("GridCell")
+                                
+                                -- Auto Oil Check
+                                if getgenv().Config.AutoOil and table.find(getgenv().Config.OilTargetTurrets, obj.Name) then
+                                    local currentOil = obj:GetAttribute("Oil")
+                                    if currentOil ~= getgenv().Config.SelectedOil then
+                                        pcall(function() CoreEvents.OilApply:FireServer(obj, getgenv().Config.SelectedOil) end)
+                                        if turretId then pcall(function() CoreEvents.OilApply:FireServer(turretId, getgenv().Config.SelectedOil) end) end
+                                        if gridCell then pcall(function() CoreEvents.OilApply:FireServer(gridCell, getgenv().Config.SelectedOil) end) end
+                                        getgenv().SessionStats.OilsApplied = getgenv().SessionStats.OilsApplied + 1
+                                        UpdateDashboard()
+                                    end
+                                end
+                                
+                                -- Auto Clock Check
+                                if getgenv().Config.AutoClock and table.find(getgenv().Config.ClockTargetTurrets, obj.Name) then
+                                    local currentClock = obj:GetAttribute("Clock")
+                                    if currentClock ~= getgenv().Config.SelectedClock then
+                                        pcall(function() CoreEvents.ClockApply:FireServer(obj, getgenv().Config.SelectedClock) end)
+                                        if turretId then pcall(function() CoreEvents.ClockApply:FireServer(turretId, getgenv().Config.SelectedClock) end) end
+                                        if gridCell then pcall(function() CoreEvents.ClockApply:FireServer(gridCell, getgenv().Config.SelectedClock) end) end
+                                        getgenv().SessionStats.ClocksApplied = getgenv().SessionStats.ClocksApplied + 1
+                                        UpdateDashboard()
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(1.5) do
+        if not getgenv().Config.MasterPause then
+            if getgenv().Config.AutoZombieCashBoost then ProcessPlayerUpgrade("Zombie Cash Boost", "CapZombieCashBoost") end
+            if getgenv().Config.AutoZombieLuck then ProcessPlayerUpgrade("Zombie Luck", "CapZombieLuck") end
+            if getgenv().Config.AutoTurretSpinLuck then ProcessPlayerUpgrade("Turret Spin Luck", "CapTurretSpinLuck") end
+        end
+    end
+end)
+
 task.spawn(function()
     while true do
-        if getgenv().Config.AutoBuyShop then
+        if not getgenv().Config.MasterPause and getgenv().Config.AutoBuyShop then
             FirePrompt("Open Shop")
             task.wait(1) 
             local sleepTime = 5 
+            
             for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
                 if gui:IsA("TextLabel") and table.find(getgenv().Config.ShopItems, gui.Text) then
                     local parent = gui.Parent
                     if parent then
+                        local canBuy = true
+                        for _, sibling in ipairs(parent:GetDescendants()) do
+                            if sibling:IsA("TextLabel") then
+                                local txt = sibling.Text:lower()
+                                if txt:match("out of stock") or txt:match("sold out") or txt:match("max") then
+                                    canBuy = false
+                                    break
+                                end
+                            end
+                        end
+                        
                         local buyBtn = parent:FindFirstChild("Buy")
-                        if buyBtn and buyBtn:IsA("ImageButton") then 
-                            SendWebhook("BuyItem_"..gui.Text, 60, "🛒 Shop Purchase", "Successfully purchased **" .. gui.Text .. "**!", 7506394, false)
+                        if canBuy and buyBtn and buyBtn:IsA("ImageButton") and buyBtn.Visible then 
+                            local itemName = gui.Text
+                            local pingType = false
+                            if getgenv().Config.PingShopItems and table.find(getgenv().Config.PingShopItems, itemName) then pingType = "Item" end
+                            
+                            SendWebhook("BuyItem_"..itemName, 10, "🛒 Shop Purchase", "Successfully purchased **" .. itemName .. "**!", 7506394, pingType)
                             VirtualClick(buyBtn) 
+                            
+                            getgenv().SessionStats.ItemsBought = getgenv().SessionStats.ItemsBought + 1
+                            UpdateDashboard()
                         end
                     end
                 end
+                
                 if gui:IsA("TextLabel") and gui.Text:match("RESTOCK IN (%d+):(%d+)") then
                     local m, s = gui.Text:match("RESTOCK IN (%d+):(%d+)")
                     if m and s then
@@ -453,13 +1032,18 @@ end)
 task.spawn(function()
     while true do
         task.wait(getgenv().Config.RewardsInterval or 10)
-        if getgenv().Config.AutoClaimRewards then
+        if not getgenv().Config.MasterPause and getgenv().Config.AutoClaimRewards then
+            local claimed = false
             for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
-                if gui:IsA("ImageButton") and gui.Name == "Claim" then VirtualClick(gui) end
+                if gui:IsA("ImageButton") and gui.Name == "Claim" then VirtualClick(gui); claimed = true end
                 if gui:IsA("TextLabel") and gui.Text == "CLAIM!" then
                     local parent = gui.Parent
-                    if parent and parent:IsA("ImageButton") then VirtualClick(parent) end
+                    if parent and parent:IsA("ImageButton") then VirtualClick(parent); claimed = true end
                 end
+            end
+            if claimed then
+                getgenv().SessionStats.RewardsClaimed = getgenv().SessionStats.RewardsClaimed + 1
+                UpdateDashboard()
             end
         end
     end
