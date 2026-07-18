@@ -1,9 +1,5 @@
 repeat task.wait() until game:IsLoaded()
 
--- ==========================================
--- 🧟 ZOMBIE FARM | WEBZ HUB V67.⁶⁹ (SIGMA EDITION)
--- Created by: webz
--- ==========================================
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
@@ -13,13 +9,11 @@ local HttpService = game:GetService("HttpService")
 local CoreEvents = ReplicatedStorage:WaitForChild("Events"):WaitForChild("Global"):WaitForChild("Core")
 local SaveFileName = "WebzHubV67_69_Settings.json"
 
--- == LIVE SIGMA STATS ==
 getgenv().SessionStats = {
     Swaps = 0, ItemsBought = 0, TurretsBought = 0,
     RewardsClaimed = 0, OilsApplied = 0, ClocksApplied = 0
 }
 
--- Dynamically load Turrets
 local TurretsDB = {}
 local TurretNamesList = {}
 pcall(function() 
@@ -50,7 +44,6 @@ local function FormatNumber(n)
     return tostring(math.floor(n))
 end
 
--- == DEEP POWER SCAN ENGINE (REAL DPS) ==
 local function GetRealDPS(obj)
     if not obj then return 0 end
     local directDPS = obj:GetAttribute("DPS") or obj:GetAttribute("dps") or obj:GetAttribute("BaseDPS")
@@ -84,7 +77,9 @@ local function GetBaseDPS(turretName)
     return 0
 end
 
-local function GetTotalPower(obj) return GetRealDPS(obj) end
+local function GetTotalPower(obj)
+    return GetRealDPS(obj)
+end
 
 local function GetSnowflakes()
     local pData = ReplicatedStorage:FindFirstChild("PlayerData")
@@ -98,7 +93,6 @@ local function GetSnowflakes()
     return 0 
 end
 
--- == SEAMLESS SAVE SYSTEM ==
 getgenv().Config = {
     MasterPause = false,
     AutoCollect = false, CollectInterval = 1,
@@ -211,7 +205,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "🧟 Webz Hub | Sigma v67.⁶⁹", LoadingTitle = "Loading Webz Hub v67.⁶⁹...",
-    LoadingSubtitle = "Strict Rejoin Engine Active", ConfigurationSaving = { Enabled = false }, KeySystem = false
+    LoadingSubtitle = "Error Prompt Fix Active", ConfigurationSaving = { Enabled = false }, KeySystem = false
 })
 local UI_Loaded = false
 local DashboardUI = {}
@@ -252,8 +246,18 @@ ModTab:CreateDropdown({Name = "Select Towers to Overclock", Options = TurretName
 local GachaTab = Window:CreateTab("🎁 Events & Gacha", 4483362458)
 GachaTab:CreateToggle({Name = "Auto-Farm Event Drops (Magnet & Jitter)", CurrentValue = getgenv().Config.AutoEventDrops, Callback = function(Value) getgenv().Config.AutoEventDrops = Value; SaveSettings() end})
 
-GachaTab:CreateToggle({Name = "Auto-Buy from Event Shop (Snowflakes)", CurrentValue = getgenv().Config.AutoBuyEventShop, Callback = function(Value) getgenv().Config.AutoBuyEventShop = Value; SaveSettings() end})
-GachaTab:CreateDropdown({Name = "Select Event Items to Buy", Options = EventShopList, CurrentOption = getgenv().Config.EventShopItems, MultipleOptions = true, Callback = function(Options) getgenv().Config.EventShopItems = Options; SaveSettings() end})
+GachaTab:CreateToggle({
+    Name = "Auto-Buy from Event Shop (Snowflakes)", 
+    CurrentValue = getgenv().Config.AutoBuyEventShop, 
+    Callback = function(Value) getgenv().Config.AutoBuyEventShop = Value; SaveSettings() end
+})
+GachaTab:CreateDropdown({
+    Name = "Select Event Items to Buy", 
+    Options = EventShopList, 
+    CurrentOption = getgenv().Config.EventShopItems, 
+    MultipleOptions = true, 
+    Callback = function(Options) getgenv().Config.EventShopItems = Options; SaveSettings() end
+})
 
 GachaTab:CreateToggle({Name = "Enable Auto-Spin (Roll!)", CurrentValue = getgenv().Config.AutoSpin, Callback = function(Value) getgenv().Config.AutoSpin = Value; SaveSettings() end})
 GachaTab:CreateSlider({Name = "Auto-Spin Delay", Range = {0, 10}, Increment = 0.1, Suffix = "s", CurrentValue = getgenv().Config.SpinDelay, Callback = function(Value) getgenv().Config.SpinDelay = Value; SaveSettings() end})
@@ -268,8 +272,8 @@ ShopTab:CreateToggle({Name = "Enable Specific Turret Auto-Buy", CurrentValue = g
 ShopTab:CreateDropdown({Name = "Select Turrets to Buy", Options = TurretNamesList, CurrentOption = getgenv().Config.TargetMapTurrets, MultipleOptions = true, Callback = function(Options) getgenv().Config.TargetMapTurrets = Options; SaveSettings() end})
 
 local SettingsTab = Window:CreateTab("⚙️ Settings", 4483362458)
-SettingsTab:CreateToggle({Name = "Auto-Rejoin on Disconnect", CurrentValue = getgenv().Config.AutoRejoin, Info="Automatically reconnects you if your internet drops or server kicks you.", Callback = function(Value) getgenv().Config.AutoRejoin = Value; SaveSettings() end})
-SettingsTab:CreateToggle({Name = "Enable Webhook Dashboard", CurrentValue = getgenv().Config.UseWebhook, Info="Creates a single message in Discord and live edits it to show stats and logs.", Callback = function(Value) getgenv().Config.UseWebhook = Value; SaveSettings() end})
+SettingsTab:CreateToggle({Name = "Auto-Rejoin on Disconnect", CurrentValue = getgenv().Config.AutoRejoin, Callback = function(Value) getgenv().Config.AutoRejoin = Value; SaveSettings() end})
+SettingsTab:CreateToggle({Name = "Enable Webhook Dashboard", CurrentValue = getgenv().Config.UseWebhook, Callback = function(Value) getgenv().Config.UseWebhook = Value; SaveSettings() end})
 SettingsTab:CreateInput({Name = "Webhook URL", PlaceholderText = "Paste your Discord Webhook URL here...", RemoveTextAfterFocusLost = false, Callback = function(Text) getgenv().Config.WebhookURL = Text; SaveSettings() end})
 SettingsTab:CreateToggle({Name = "Enable Discord Pings", CurrentValue = getgenv().Config.PingOwner, Callback = function(Value) getgenv().Config.PingOwner = Value; SaveSettings() end})
 SettingsTab:CreateInput({Name = "Discord User ID", PlaceholderText = "e.g., 123456789012345678", RemoveTextAfterFocusLost = false, Callback = function(Text) getgenv().Config.DiscordID = Text; SaveSettings() end})
@@ -282,27 +286,40 @@ SettingsTab:CreateButton({Name = "Test Webhook & Ping", Callback = function()
 end})
 
 UI_Loaded = true
-Rayfield:Notify({Title = "Webz Hub v67.⁶⁹ Loaded!", Content = "Discord Live Dashboard enabled.", Duration = 5, Image = 4483362458})
+Rayfield:Notify({Title = "Webz Hub v67.⁶⁹ Loaded!", Content = "Anti-Restricted Patch Applied.", Duration = 5, Image = 4483362458})
 
 if getgenv().Config.UseWebhook and getgenv().Config.WebhookURL ~= "" then 
     SendStandaloneMessage("🟢 Webz Hub Injected", "User **" .. LocalPlayer.Name .. "** has loaded the script successfully.", 65280) 
 end
 
 -- ==========================================
--- 📡 NATIVE REMOTE & UI EVENT TRACKER (REJOIN FIX)
+-- 📡 NATIVE REMOTE & UI EVENT TRACKER (RESTRICTED FIX)
 -- ==========================================
 pcall(function()
     game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
-        if child.Name == 'ErrorPrompt' and getgenv().Config.AutoRejoin then
-            task.wait(0.5) -- Wait for text to physically render in the UI
+        if child.Name == 'ErrorPrompt' then
+            task.wait(0.5) 
             local msgLabel = child:FindFirstChild("ErrorMessage", true)
             local msgText = msgLabel and msgLabel.Text:lower() or ""
             
-            -- STRICT REJOIN CHECK: Only rejoins if the error message is an actual network disconnect!
-            if msgText:match("disconnect") or msgText:match("connection") or msgText:match("kicked") or msgText:match("unexpected") then
-                SendStandaloneMessage("🔌 Disconnected!", "Connection lost. Attempting to auto-rejoin the server...", 16711680, (getgenv().Config.PingOwner and getgenv().Config.DiscordID~="" and "<@"..getgenv().Config.DiscordID.."> 🚨 Server Disconnected!"))
-                task.wait(2)
-                game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+            -- 1. IF IT'S THE TELEPORT/RESTRICTED ERROR, CLOSE IT!
+            if msgText:match("restricted") or msgText:match("teleport") or msgText:match("place") or msgText:match("failed") then
+                local okBtn = child:FindFirstChildWhichIsA("TextButton", true) or child:FindFirstChildWhichIsA("ImageButton", true)
+                if okBtn then VirtualClick(okBtn) end
+                
+                -- Fallbacks to completely wipe the prompt from the screen
+                pcall(function() game:GetService("GuiService"):ClearError() end)
+                pcall(function() child:Destroy() end)
+                return 
+            end
+            
+            -- 2. IF IT'S AN ACTUAL CONNECTION DISCONNECT, AUTO REJOIN!
+            if getgenv().Config.AutoRejoin then
+                if msgText:match("disconnect") or msgText:match("connection") or msgText:match("kicked") or msgText:match("unexpected") then
+                    SendStandaloneMessage("🔌 Disconnected!", "Connection lost. Attempting to auto-rejoin the server...", 16711680, (getgenv().Config.PingOwner and getgenv().Config.DiscordID~="" and "<@"..getgenv().Config.DiscordID.."> 🚨 Server Disconnected!"))
+                    task.wait(2)
+                    game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+                end
             end
         end
     end)
@@ -639,12 +656,14 @@ task.spawn(function()
                     LogAction("🔫 Bought **" .. tName .. "** from map slabs!", pingType)
                     pcall(function() fireproximityprompt(prompt, 1, true); fireproximityprompt(prompt) end)
                     getgenv().SessionStats.TurretsBought = getgenv().SessionStats.TurretsBought + 1
+                    UpdateDashboard()
                 end
             end
         end
     end
 end)
 
+-- SMART AUTO-SWAP LOOP
 task.spawn(function()
     while true do
         task.wait(getgenv().Config.SwapInterval or 10)
@@ -717,6 +736,7 @@ task.spawn(function()
                                 if turretId then pcall(function() CoreEvents.TurretPickup:FireServer(turretId) end) end
                                 if gridCell then pcall(function() CoreEvents.TurretPickup:FireServer(gridCell) end) end
                                 getgenv().SessionStats.Swaps = getgenv().SessionStats.Swaps + 1
+                                UpdateDashboard()
                             end
                         end
                     end
@@ -772,6 +792,7 @@ task.spawn(function()
                                         if turretId then pcall(function() CoreEvents.OilApply:FireServer(turretId, getgenv().Config.SelectedOil) end) end
                                         if gridCell then pcall(function() CoreEvents.OilApply:FireServer(gridCell, getgenv().Config.SelectedOil) end) end
                                         getgenv().SessionStats.OilsApplied = getgenv().SessionStats.OilsApplied + 1
+                                        UpdateDashboard()
                                     end
                                 end
                                 
@@ -782,6 +803,7 @@ task.spawn(function()
                                         if turretId then pcall(function() CoreEvents.ClockApply:FireServer(turretId, getgenv().Config.SelectedClock) end) end
                                         if gridCell then pcall(function() CoreEvents.ClockApply:FireServer(gridCell, getgenv().Config.SelectedClock) end) end
                                         getgenv().SessionStats.ClocksApplied = getgenv().SessionStats.ClocksApplied + 1
+                                        UpdateDashboard()
                                     end
                                 end
                             end
@@ -830,6 +852,7 @@ task.spawn(function()
                             LogAction("🛒 Bought **" .. itemName .. "** from Auto-Shop!", pingType)
                             VirtualClick(buyBtn) 
                             getgenv().SessionStats.ItemsBought = getgenv().SessionStats.ItemsBought + 1
+                            UpdateDashboard()
                         end
                     end
                 end
@@ -863,6 +886,7 @@ task.spawn(function()
             end
             if claimed then
                 getgenv().SessionStats.RewardsClaimed = getgenv().SessionStats.RewardsClaimed + 1
+                UpdateDashboard()
             end
         end
     end
