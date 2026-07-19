@@ -1,5 +1,9 @@
 repeat task.wait() until game:IsLoaded()
 
+-- ==========================================
+-- 🧟 ZOMBIE FARM | WEBZ HUB V67.⁶⁹ (SIGMA EDITION)
+-- Created by: webz
+-- ==========================================
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
@@ -9,11 +13,13 @@ local HttpService = game:GetService("HttpService")
 local CoreEvents = ReplicatedStorage:WaitForChild("Events"):WaitForChild("Global"):WaitForChild("Core")
 local SaveFileName = "WebzHubV67_69_Settings.json"
 
+-- == LIVE SIGMA STATS ==
 getgenv().SessionStats = {
     Swaps = 0, ItemsBought = 0, TurretsBought = 0,
     RewardsClaimed = 0, OilsApplied = 0, ClocksApplied = 0
 }
 
+-- Dynamically load Turrets
 local TurretsDB = {}
 local TurretNamesList = {}
 pcall(function() 
@@ -44,47 +50,43 @@ local function FormatNumber(n)
     return tostring(math.floor(n))
 end
 
+-- == DEEP POWER SCAN ENGINE (REAL DPS) ==
+local function GetRealDPS(obj)
+    if not obj then return 0 end
+    local directDPS = obj:GetAttribute("DPS") or obj:GetAttribute("dps") or obj:GetAttribute("BaseDPS")
+    if not directDPS then
+        local val = obj:FindFirstChild("DPS") or obj:FindFirstChild("dps") or obj:FindFirstChild("BaseDPS")
+        if val and (val:IsA("NumberValue") or val:IsA("IntValue")) then directDPS = val.Value end
+    end
+    if directDPS and type(directDPS) == "number" then return directDPS end
+    
+    local actualDmg = obj:GetAttribute("Damage") or obj:GetAttribute("damage")
+    if not actualDmg then
+        local val = obj:FindFirstChild("Damage") or obj:FindFirstChild("damage")
+        if val and (val:IsA("NumberValue") or val:IsA("IntValue")) then actualDmg = val.Value end
+    end
+    
+    local actualRate = obj:GetAttribute("FireRate") or obj:GetAttribute("Firerate") or obj:GetAttribute("firerate")
+    if not actualRate then
+        local val = obj:FindFirstChild("FireRate") or obj:FindFirstChild("Firerate") or obj:FindFirstChild("firerate")
+        if val and (val:IsA("NumberValue") or val:IsA("IntValue")) then actualRate = val.Value end
+    end
+    
+    if type(actualDmg) == "number" and type(actualRate) == "number" then return actualDmg * actualRate end
+    local turretName = typeof(obj) == "string" and obj or obj.Name
+    if TurretsDB[turretName] and TurretsDB[turretName].Damage then return TurretsDB[turretName].Damage * (TurretsDB[turretName].FireRate or 1) end
+    return 0
+end
+
 local function GetBaseDPS(turretName)
     local data = TurretsDB[turretName]
     if data and data.Damage then return data.Damage * (data.FireRate or 1) end
     return 0
 end
 
--- CALCULATES TRUE TOTAL DPS (Base DPS * Level * Oil * Clock)
-local function GetTrueTotalDPS(obj)
-    if not obj then return 0 end
-    local baseDPS = GetBaseDPS(obj.Name)
-    if baseDPS == 0 then return 0 end
-    
-    local level = tonumber(obj:GetAttribute("TurretLevel") or obj:GetAttribute("Level")) or 1
-    local dps = baseDPS * level
-    
-    local oil = obj:GetAttribute("Oil")
-    if oil == "Shiny Oil" then dps = dps * 2
-    elseif oil == "Rainbow Oil" then dps = dps * 4
-    elseif oil == "Galaxy Oil" then dps = dps * 6
-    elseif oil == "Blizzard Oil" then dps = dps * 5 end
-    
-    local clock = obj:GetAttribute("Clock")
-    if clock == "OverClock" then dps = dps * 2
-    elseif clock == "SuperClock" then dps = dps * 4
-    elseif clock == "HyperClock" then dps = dps * 6 end
-    
-    return dps
-end
+local function GetTotalPower(obj) return GetRealDPS(obj) end
 
-local function GetSnowflakes()
-    local pData = ReplicatedStorage:FindFirstChild("PlayerData")
-    if pData then
-        local myData = pData:FindFirstChild(LocalPlayer.Name) or pData:FindFirstChild(tostring(LocalPlayer.UserId))
-        if myData then
-            local sf = myData:FindFirstChild("Snowflakes")
-            if sf then return sf.Value end
-        end
-    end
-    return 0 
-end
-
+-- == SEAMLESS SAVE SYSTEM ==
 getgenv().Config = {
     MasterPause = false,
     AutoCollect = false, CollectInterval = 1,
@@ -114,51 +116,42 @@ if isfile and isfile(SaveFileName) then
 end
 local function SaveSettings() pcall(function() if writefile then writefile(SaveFileName, HttpService:JSONEncode(getgenv().Config)) end end) end
 
-getgenv().RecentLogs = {}
-getgenv().LastLogMsg = ""
-getgenv().DashboardMessageID = nil
-
-local function SendStandaloneMessage(title, description, color, contentText)
+-- == DISCORD WEBHOOK ENGINE ==
+local WebhookCooldowns = {}
+local function SendWebhook(throttleKey, cooldownSecs, title, description, color, pingType)
     local url = getgenv().Config.WebhookURL
     if not url or url == "" or not getgenv().Config.UseWebhook then return end
 
+    if throttleKey and cooldownSecs then
+        if WebhookCooldowns[throttleKey] and (tick() - WebhookCooldowns[throttleKey]) < cooldownSecs then return end
+        WebhookCooldowns[throttleKey] = tick()
+    end
+
     local embed = {
         ["title"] = title, ["description"] = description, ["color"] = color or 7506394,
-        ["timestamp"] = DateTime.now():ToIsoDate(), ["footer"] = {["text"] = "Webz Hub v67.⁶⁹"}
+        ["timestamp"] = DateTime.now():ToIsoDate(), ["footer"] = {["text"] = "Webz Hub v67.⁶⁹ | Level 10 Gyatt Edition"}
     }
-    
+
+    local contentMsg = nil
+    if pingType and getgenv().Config.PingOwner and getgenv().Config.DiscordID ~= "" then
+        if pingType == "Critical" then contentMsg = "🚨 <@" .. getgenv().Config.DiscordID .. "> **CRITICAL ALERT!**"
+        elseif pingType == "Turret" then contentMsg = "🔫 <@" .. getgenv().Config.DiscordID .. "> **Turret Ping!**"
+        elseif pingType == "Item" then contentMsg = "🛒 <@" .. getgenv().Config.DiscordID .. "> **Item Ping!**"
+        elseif pingType == "Event" then contentMsg = "📢 <@" .. getgenv().Config.DiscordID .. "> **Event Ping!**" end
+    end
+
     local payloadData = {["username"] = "Webz Hub Logger", ["embeds"] = {embed}}
-    if contentText then payloadData["content"] = contentText end
-    local payload = HttpService:JSONEncode(payloadData)
+    if contentMsg then payloadData["content"] = contentMsg end
 
     local requestFunc = syn and syn.request or http and http.request or http_request or fluxus and fluxus.request or request
-    if requestFunc then task.spawn(function() pcall(function() requestFunc({Url = url, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = payload}) end) end) end
-end
-
-local function LogAction(msg, pingType)
-    if not getgenv().Config.UseWebhook or getgenv().Config.WebhookURL == "" then return end
-    if getgenv().LastLogMsg == msg then return end
-    getgenv().LastLogMsg = msg
-
-    local timeStr = "<t:" .. math.floor(os.time()) .. ":T>"
-    table.insert(getgenv().RecentLogs, 1, timeStr .. " - " .. msg)
-    if #getgenv().RecentLogs > 7 then table.remove(getgenv().RecentLogs, 8) end
-
-    if pingType and getgenv().Config.PingOwner and getgenv().Config.DiscordID ~= "" then
-        local url = getgenv().Config.WebhookURL
-        local contentMsg = ""
-        if pingType == "Critical" then contentMsg = "🚨 <@" .. getgenv().Config.DiscordID .. "> **CRITICAL ALERT:** " .. msg
-        elseif pingType == "Turret" then contentMsg = "🔫 <@" .. getgenv().Config.DiscordID .. "> **Turret Bought:** " .. msg
-        elseif pingType == "Item" then contentMsg = "🛒 <@" .. getgenv().Config.DiscordID .. "> **Item Bought:** " .. msg
-        elseif pingType == "Event" then contentMsg = "📢 <@" .. getgenv().Config.DiscordID .. "> **Event:** " .. msg end
-        
-        if contentMsg ~= "" then
-            local requestFunc = syn and syn.request or http and http.request or http_request or fluxus and fluxus.request or request
-            if requestFunc then pcall(function() requestFunc({Url = url, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode({["content"] = contentMsg, ["username"] = "Webz Hub Alerts"})}) end) end
-        end
+    if requestFunc then
+        task.spawn(function()
+            pcall(function() requestFunc({Url = url, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode(payloadData)}) end)
+        end)
     end
 end
 
+-- == VIRTUAL ENGINE ==
 local function VirtualClick(button)
     if not button then return end
     pcall(function() firesignal(button.MouseButton1Click) end)
@@ -193,45 +186,13 @@ local function GetMyPlot()
     return nil
 end
 
-local function GetPlayerTotalDPS()
-    -- 1. Check Leaderstats
-    local ls = LocalPlayer:FindFirstChild("leaderstats")
-    if ls then
-        for _, v in ipairs(ls:GetChildren()) do
-            if v.Name:upper():match("DPS") or v.Name:upper() == "DAMAGE" then return v.Value end
-        end
-    end
-    
-    -- 2. Check PlayerData
-    local pData = ReplicatedStorage:FindFirstChild("PlayerData")
-    if pData then
-        local myData = pData:FindFirstChild(LocalPlayer.Name) or pData:FindFirstChild(tostring(LocalPlayer.UserId))
-        if myData then
-            local dpsVal = myData:FindFirstChild("DPS") or myData:FindFirstChild("TotalDPS") or myData:FindFirstChild("Damage")
-            if dpsVal then return dpsVal.Value end
-        end
-    end
-    
-    -- 3. Fallback: Calculate Manually
-    local total = 0
-    local myPlot = GetMyPlot()
-    if myPlot then
-        local turretsFolder = myPlot:FindFirstChild("Turrets")
-        if turretsFolder then 
-            for _, obj in ipairs(turretsFolder:GetChildren()) do 
-                if obj:IsA("Model") and TurretsDB[obj.Name] then
-                    total = total + GetTrueTotalDPS(obj)
-                end
-            end 
-        end
-    end
-    return total
-end
-
+-- ==========================================
+-- LOAD RAYFIELD UI
+-- ==========================================
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "🧟 Webz Hub | Sigma v67.⁶⁹", LoadingTitle = "Loading Webz Hub v67.⁶⁹...",
-    LoadingSubtitle = "True Total DPS Engine Active", ConfigurationSaving = { Enabled = false }, KeySystem = false
+    LoadingSubtitle = "Leaderboard Sync Active", ConfigurationSaving = { Enabled = false }, KeySystem = false
 })
 local UI_Loaded = false
 local DashboardUI = {}
@@ -258,7 +219,7 @@ PlotTab:CreateInput({Name = "Max Level Cap (Turret Luck)", PlaceholderText = "Ca
 local SwapTab = Window:CreateTab("🔄 Smart Swap", 4483362458)
 SwapTab:CreateToggle({Name = "Enable Smart Auto-Swap", CurrentValue = getgenv().Config.AutoSwap, Callback = function(Value) getgenv().Config.AutoSwap = Value; SaveSettings() end})
 SwapTab:CreateDropdown({Name = "Swap Calculation Mode", Options = {"Base DPS (Level 1 Stats)", "Real DPS (Current Applied Stats)"}, CurrentOption = {getgenv().Config.SwapMode}, MultipleOptions = false, Callback = function(Option) getgenv().Config.SwapMode = Option[1]; SaveSettings() end})
-SwapTab:CreateToggle({Name = "Deep Power Scan (Tie-Breaker)", CurrentValue = getgenv().Config.DeepPowerScan, Info="Uses accurate Total DPS math to decide tie-breakers.", Callback = function(Value) getgenv().Config.DeepPowerScan = Value; SaveSettings() end})
+SwapTab:CreateToggle({Name = "Deep Power Scan (Tie-Breaker)", CurrentValue = getgenv().Config.DeepPowerScan, Callback = function(Value) getgenv().Config.DeepPowerScan = Value; SaveSettings() end})
 SwapTab:CreateSlider({Name = "Swap Interval", Range = {1, 60}, Increment = 1, Suffix = "s", CurrentValue = getgenv().Config.SwapInterval, Callback = function(Value) getgenv().Config.SwapInterval = Value; SaveSettings() end})
 
 local ModTab = Window:CreateTab("💦 Aura Modifiers", 4483362458)
@@ -273,6 +234,7 @@ local GachaTab = Window:CreateTab("🎁 Events & Gacha", 4483362458)
 GachaTab:CreateToggle({Name = "Auto-Farm Event Drops (Magnet & Jitter)", CurrentValue = getgenv().Config.AutoEventDrops, Callback = function(Value) getgenv().Config.AutoEventDrops = Value; SaveSettings() end})
 GachaTab:CreateToggle({Name = "Auto-Buy from Event Shop (Snowflakes)", CurrentValue = getgenv().Config.AutoBuyEventShop, Callback = function(Value) getgenv().Config.AutoBuyEventShop = Value; SaveSettings() end})
 GachaTab:CreateDropdown({Name = "Select Event Items to Buy", Options = EventShopList, CurrentOption = getgenv().Config.EventShopItems, MultipleOptions = true, Callback = function(Options) getgenv().Config.EventShopItems = Options; SaveSettings() end})
+
 GachaTab:CreateToggle({Name = "Enable Auto-Spin (Roll!)", CurrentValue = getgenv().Config.AutoSpin, Callback = function(Value) getgenv().Config.AutoSpin = Value; SaveSettings() end})
 GachaTab:CreateSlider({Name = "Auto-Spin Delay", Range = {0, 10}, Increment = 0.1, Suffix = "s", CurrentValue = getgenv().Config.SpinDelay, Callback = function(Value) getgenv().Config.SpinDelay = Value; SaveSettings() end})
 GachaTab:CreateToggle({Name = "Failproof Spin (Pause if Target Spawns)", CurrentValue = getgenv().Config.FailproofSpin, Callback = function(Value) getgenv().Config.FailproofSpin = Value; SaveSettings() end})
@@ -287,7 +249,7 @@ ShopTab:CreateDropdown({Name = "Select Turrets to Buy", Options = TurretNamesLis
 
 local SettingsTab = Window:CreateTab("⚙️ Settings", 4483362458)
 SettingsTab:CreateToggle({Name = "Auto-Rejoin on Disconnect", CurrentValue = getgenv().Config.AutoRejoin, Callback = function(Value) getgenv().Config.AutoRejoin = Value; SaveSettings() end})
-SettingsTab:CreateToggle({Name = "Enable Webhook Dashboard", CurrentValue = getgenv().Config.UseWebhook, Info="Creates a single message in Discord and live edits it to show stats and logs.", Callback = function(Value) getgenv().Config.UseWebhook = Value; SaveSettings() end})
+SettingsTab:CreateToggle({Name = "Enable Webhook Dashboard", CurrentValue = getgenv().Config.UseWebhook, Callback = function(Value) getgenv().Config.UseWebhook = Value; SaveSettings() end})
 SettingsTab:CreateInput({Name = "Webhook URL", PlaceholderText = "Paste your Discord Webhook URL here...", RemoveTextAfterFocusLost = false, Callback = function(Text) getgenv().Config.WebhookURL = Text; SaveSettings() end})
 SettingsTab:CreateToggle({Name = "Enable Discord Pings", CurrentValue = getgenv().Config.PingOwner, Callback = function(Value) getgenv().Config.PingOwner = Value; SaveSettings() end})
 SettingsTab:CreateInput({Name = "Discord User ID", PlaceholderText = "e.g., 123456789012345678", RemoveTextAfterFocusLost = false, Callback = function(Text) getgenv().Config.DiscordID = Text; SaveSettings() end})
@@ -300,12 +262,15 @@ SettingsTab:CreateButton({Name = "Test Webhook & Ping", Callback = function()
 end})
 
 UI_Loaded = true
-Rayfield:Notify({Title = "Webz Hub v67.⁶⁹ Loaded!", Content = "True DPS Engine Active.", Duration = 5, Image = 4483362458})
+Rayfield:Notify({Title = "Webz Hub v67.⁶⁹ Loaded!", Content = "Leaderboard DPS Sync Active.", Duration = 5, Image = 4483362458})
 
 if getgenv().Config.UseWebhook and getgenv().Config.WebhookURL ~= "" then 
     SendStandaloneMessage("🟢 Webz Hub Injected", "User **" .. LocalPlayer.Name .. "** has loaded the script successfully.", 65280) 
 end
 
+-- ==========================================
+-- 📡 NATIVE REMOTE & UI EVENT TRACKER
+-- ==========================================
 pcall(function()
     game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
         if child.Name == 'ErrorPrompt' and getgenv().Config.AutoRejoin then
@@ -328,6 +293,16 @@ pcall(function()
             end
         end
     end)
+end)
+
+pcall(function()
+    local notifyRemote = ReplicatedStorage.Events.Global.Core:FindFirstChild("Notify")
+    if notifyRemote then
+        notifyRemote.OnClientEvent:Connect(function(data)
+            local msg = type(data) == "table" and (data.Message or data.Text) or tostring(data)
+            LogAction("🔔 " .. msg)
+        end)
+    end
 end)
 
 task.spawn(function()
@@ -403,8 +378,9 @@ local function ProcessPlayerUpgrade(upgradeName, configCapKey)
 end
 
 -- ==========================================
--- 📡 UI & DISCORD DASHBOARD SYNC 
+-- 📡 UI & DISCORD DASHBOARD SYNC (EVERY 5 SECONDS)
 -- ==========================================
+local lastDiscordUpdate = 0
 task.spawn(function()
     while task.wait(5) do
         local statsStrUI = string.format("Towers Swapped: %d\nItems Bought: %d\nMap Turrets Bought: %d\nRewards Claimed: %d\nGyatts Oiled/Clocked: %d", 
@@ -431,21 +407,48 @@ task.spawn(function()
             end
         end
         
-        profileText = profileText .. "🔥 Total Plot DPS: " .. FormatNumber(GetPlayerTotalDPS())
+        -- 🌟 REAL LEADERBOARD DPS SYNC
+        local totalDPS = 0
+        local foundRealDPS = false
+        local ls = LocalPlayer:FindFirstChild("leaderstats")
+        if ls then
+            for _, stat in ipairs(ls:GetChildren()) do
+                if stat.Name:lower():match("dps") or stat.Name:lower():match("damage") or stat.Name:lower():match("power") then
+                    totalDPS = stat.Value
+                    foundRealDPS = true
+                    break
+                end
+            end
+        end
+        if not foundRealDPS and pData then
+            local myData = pData:FindFirstChild(LocalPlayer.Name) or pData:FindFirstChild(tostring(LocalPlayer.UserId))
+            if myData then
+                local dpsVal = myData:FindFirstChild("DPS") or myData:FindFirstChild("TotalDPS") or myData:FindFirstChild("Damage")
+                if dpsVal then totalDPS = dpsVal.Value; foundRealDPS = true end
+            end
+        end
+        
+        -- Fallback if server hides it
+        if not foundRealDPS then
+            local myPlot = GetMyPlot()
+            if myPlot then
+                local turretsFolder = myPlot:FindFirstChild("Turrets")
+                if turretsFolder then for _, obj in ipairs(turretsFolder:GetChildren()) do totalDPS = totalDPS + GetRealDPS(obj) end end
+            end
+        end
+        
+        profileText = profileText .. "🔥 Total Plot DPS: " .. FormatNumber(totalDPS)
         if DashboardUI.ProfileBoard then DashboardUI.ProfileBoard:Set({Title = "👤 Live Player Profile", Content = profileText}) end
         
         if getgenv().Config.UseWebhook and getgenv().Config.WebhookURL ~= "" then
             local logsStr = "No recent activity."
             if #getgenv().RecentLogs > 0 then logsStr = table.concat(getgenv().RecentLogs, "\n") end
-            
+
             local activeEvent = "None"
             for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
                 if gui:IsA("TextLabel") and gui.Name == "EventName" and gui.Visible then
                     local txt = gui.Text
-                    if txt ~= "" and txt ~= "EventName" and txt:lower() ~= "none" then
-                        activeEvent = txt
-                        break
-                    end
+                    if txt ~= "" and txt ~= "EventName" and txt:lower() ~= "none" then activeEvent = txt break end
                 end
             end
 
@@ -484,6 +487,9 @@ task.spawn(function()
     end
 end)
 
+-- ==========================================
+-- BACKGROUND LOOPS (THE ENGINE)
+-- ==========================================
 local EventItemPrices = {
     ["Acid Oil"] = 150, ["Shiny Oil"] = 300, ["Blizzard Oil"] = 750, ["Galaxy Oil"] = 1000,
     ["OverClock"] = 75, ["SuperClock"] = 200, ["HyperClock"] = 400,
@@ -520,6 +526,7 @@ task.spawn(function()
             if eventShopPrompt then
                 pcall(function() fireproximityprompt(eventShopPrompt, 1, true); fireproximityprompt(eventShopPrompt) end)
                 task.wait(1) 
+                
                 local currentSnowflakes = GetSnowflakes()
                 
                 for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
